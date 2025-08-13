@@ -110,6 +110,54 @@ export default function ApiTester() {
     }
   };
 
+  const generateCurlCommand = () => {
+    if (!url.trim()) return '';
+    
+    const curlParts = [
+      'curl',
+      '-X', method,
+      `"${url.trim()}"`
+    ];
+
+    // Add headers
+    curlParts.push('-H', '"accept: application/json, text/plain, */*"');
+    curlParts.push('-H', '"origin: https://new-panel.brandsforlessuae.com"');
+    curlParts.push('-H', '"referer: https://new-panel.brandsforlessuae.com/"');
+    curlParts.push('-H', '"user-agent: Mozilla/5.0 (compatible; API-Tester/1.0)"');
+    
+    if (token.trim()) {
+      curlParts.push('-H', `"x-access-token: ${token.trim()}"`);
+    }
+
+    return curlParts.join(' \\\n  ');
+  };
+
+  const handleCopyCurl = async () => {
+    const curlCommand = generateCurlCommand();
+    if (!curlCommand) {
+      toast({
+        title: "Cannot generate cURL",
+        description: "Please enter an API endpoint URL first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(curlCommand);
+      toast({
+        title: "cURL Copied!",
+        description: "cURL command copied to clipboard",
+      });
+    } catch (error) {
+      toast({
+        title: "Copy failed",
+        description: "Failed to copy cURL command to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -237,6 +285,7 @@ export default function ApiTester() {
                   <h3 className="text-sm font-medium text-slate-700 mb-3">Quick Actions</h3>
                   <div className="space-y-2">
                     <Button
+                      onClick={handleCopyCurl}
                       variant="ghost"
                       className="w-full justify-start text-slate-600 hover:bg-slate-50"
                       size="sm"
