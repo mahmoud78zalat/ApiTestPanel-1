@@ -171,9 +171,20 @@ function JsonNode({ data, keyName, level = 0, isArrayItem = false, isLast = true
 export function JsonViewer({ data, className }: JsonViewerProps) {
   const [copied, setCopied] = useState(false);
 
+  // Always convert to JSON string first to ensure we have the complete API response
   const jsonString = useMemo(() => {
-    return JSON.stringify(data, null, 2);
+    return JSON.stringify(data, null, 4);
   }, [data]);
+
+  // Parse the JSON string back to object for rendering the collapsible view
+  const parsedData = useMemo(() => {
+    try {
+      return JSON.parse(jsonString);
+    } catch (error) {
+      console.error('Failed to parse JSON:', error);
+      return data; // fallback to original data if parsing fails
+    }
+  }, [jsonString, data]);
 
   const handleCopy = async () => {
     try {
@@ -193,8 +204,8 @@ export function JsonViewer({ data, className }: JsonViewerProps) {
           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
           <span className="text-gray-700 font-medium">JSON Response</span>
           <span className="text-gray-500 text-sm">
-            ({typeof data === 'object' && data !== null ? 
-              Array.isArray(data) ? `${data.length} items` : `${Object.keys(data).length} properties`
+            ({typeof parsedData === 'object' && parsedData !== null ? 
+              Array.isArray(parsedData) ? `${parsedData.length} items` : `${Object.keys(parsedData).length} properties`
               : 'primitive'})
           </span>
         </div>
@@ -221,7 +232,7 @@ export function JsonViewer({ data, className }: JsonViewerProps) {
       {/* JSON Content */}
       <div className="bg-white border-x border-b border-gray-200 rounded-b-lg shadow-sm">
         <div className="p-4 max-h-96 overflow-auto bg-gradient-to-br from-gray-50 to-white">
-          <JsonNode data={data} />
+          <JsonNode data={parsedData} />
         </div>
       </div>
 
