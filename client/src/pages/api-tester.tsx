@@ -183,9 +183,6 @@ export default function ApiTester() {
                 <Code className="text-white w-4 h-4" />
               </div>
               <h1 className="text-xl font-semibold text-slate-900">API Testing Panel</h1>
-              <Badge variant="secondary" className="bg-slate-100 text-slate-600">
-                Brands for Less
-              </Badge>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-slate-600">Environment: Production</span>
