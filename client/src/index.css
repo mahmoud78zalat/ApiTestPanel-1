@@ -110,33 +110,21 @@
   }
 }
 
-/* JSON Syntax Highlighting */
-.json-key {
-  color: hsl(270, 70%, 60%);
-  font-weight: 500;
+/* JSON Syntax Highlighting for Raw JSON Display */
+.json-viewer pre {
+  font-family: var(--font-mono);
+  line-height: 1.6;
 }
 
-.json-string {
-  color: hsl(142, 71%, 45%);
+.json-viewer code {
+  color: #e2e8f0; /* Default text color */
 }
 
-.json-number {
-  color: hsl(38, 95%, 54%);
-}
-
-.json-boolean {
-  color: hsl(0, 84%, 60%);
-  font-weight: 500;
-}
-
-.json-null {
-  color: hsl(215, 14%, 41%);
-  font-style: italic;
-}
-
-.json-bracket {
-  color: hsl(215, 20%, 65%);
-  font-weight: 600;
+/* Add better contrast and readability for raw JSON */
+.json-viewer pre code {
+  display: block;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 /* Smooth transitions for interactive elements */
