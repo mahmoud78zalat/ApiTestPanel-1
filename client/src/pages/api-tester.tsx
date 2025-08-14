@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,117 @@ import {
   CheckCircle,
   Link,
   Key,
+  List,
+  Search,
 } from "lucide-react";
+
+// Predefined API endpoints with dynamic parameters
+interface ApiEndpoint {
+  id: string;
+  name: string;
+  description: string;
+  url: string;
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  parameters: Array<{
+    key: string;
+    label: string;
+    placeholder: string;
+    required: boolean;
+  }>;
+}
+
+const API_ENDPOINTS: ApiEndpoint[] = [
+  {
+    id: "fetch-order",
+    name: "Fetch Order by ID",
+    description: "Fetch order for specific user",
+    url: "https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/{orderid}",
+    method: "GET",
+    parameters: [
+      {
+        key: "orderid",
+        label: "Order ID",
+        placeholder: "Enter order ID (e.g., 1932179)",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "sales-return",
+    name: "Sales Return Check",
+    description: "Check for user returned items and refund",
+    url: "https://api.brandsforlessuae.com/shipment/api/v1/shipment/salesReturn/customer/{customerid}",
+    method: "GET",
+    parameters: [
+      {
+        key: "customerid",
+        label: "Customer ID",
+        placeholder: "Enter customer ID (e.g., 1405941)",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "customer-orders",
+    name: "Customer Orders",
+    description: "Search for all orders for specific user",
+    url: "https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId={customerid}&pageNum=1&pageSize=20",
+    method: "GET",
+    parameters: [
+      {
+        key: "customerid",
+        label: "Customer ID",
+        placeholder: "Enter customer ID (e.g., 1405941)",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "search-by-email",
+    name: "Search by Email",
+    description: "Search customer by email address",
+    url: "https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email={email}&customerId=",
+    method: "GET",
+    parameters: [
+      {
+        key: "email",
+        label: "Email Address",
+        placeholder: "Enter email address (e.g., user@example.com)",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "search-by-phone",
+    name: "Search by Phone",
+    description: "Search customer by phone number",
+    url: "https://api.brandsforlessuae.com/customer/api/v1/user?mobile={phonenum}&email=&customerId=-1",
+    method: "GET",
+    parameters: [
+      {
+        key: "phonenum",
+        label: "Phone Number",
+        placeholder: "Enter phone number (e.g., +971501234567)",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "customer-address",
+    name: "Customer Address Info",
+    description: "Fetch user information including name, address, phone, email",
+    url: "https://api.brandsforlessuae.com/customer/api/v1/address?customerId={customerid}",
+    method: "GET",
+    parameters: [
+      {
+        key: "customerid",
+        label: "Customer ID",
+        placeholder: "Enter customer ID (e.g., 1932179)",
+        required: true
+      }
+    ]
+  }
+];
 
 export default function ApiTester() {
   const { toast } = useToast();
@@ -35,6 +145,56 @@ export default function ApiTester() {
   const [token, setToken] = useState("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7InVzZXJJZCI6MTQwMiwibmFtZSI6IkNhcm9saW5lIFdhZ3VpaCBGcmFuY2lzIiwiYXBwTmFtZSI6ImFkbWlucGFuZWwiLCJkYXRhc2VudGVyIjoidWFlIn0sImlhdCI6MTc1NTAxODA3NywiZXhwIjoxNzg2NTU0MDc3fQ.H4rQyaqsZ30hdooK9P8ropw2zea9bDstReZLuBeeK0g");
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEndpoint, setSelectedEndpoint] = useState<string>("");
+  const [parameters, setParameters] = useState<Record<string, string>>({});
+  const [showCustomUrl, setShowCustomUrl] = useState(true);
+
+  // Helper function to construct URL from template and parameters
+  const constructUrl = (templateUrl: string, params: Record<string, string>) => {
+    let constructedUrl = templateUrl;
+    Object.entries(params).forEach(([key, value]) => {
+      constructedUrl = constructedUrl.replace(`{${key}}`, encodeURIComponent(value));
+    });
+    return constructedUrl;
+  };
+
+  // Handle endpoint selection
+  const handleEndpointSelect = (endpointId: string) => {
+    if (endpointId === "custom") {
+      setSelectedEndpoint("");
+      setShowCustomUrl(true);
+      setParameters({});
+      return;
+    }
+
+    const endpoint = API_ENDPOINTS.find(ep => ep.id === endpointId);
+    if (endpoint) {
+      setSelectedEndpoint(endpointId);
+      setMethod(endpoint.method);
+      setShowCustomUrl(false);
+      
+      // Initialize parameters
+      const initialParams: Record<string, string> = {};
+      endpoint.parameters.forEach(param => {
+        initialParams[param.key] = "";
+      });
+      setParameters(initialParams);
+      
+      // Set URL template
+      setUrl(endpoint.url);
+    }
+  };
+
+  // Update URL when parameters change
+  useEffect(() => {
+    if (selectedEndpoint) {
+      const endpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
+      if (endpoint) {
+        const constructedUrl = constructUrl(endpoint.url, parameters);
+        setUrl(constructedUrl);
+      }
+    }
+  }, [selectedEndpoint, parameters]);
 
   const proxyMutation = useMutation({
     mutationFn: async (request: ApiRequest) => {
@@ -77,6 +237,25 @@ export default function ApiTester() {
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate required parameters for selected endpoint
+    if (selectedEndpoint) {
+      const endpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
+      if (endpoint) {
+        const missingParams = endpoint.parameters
+          .filter(param => param.required && !parameters[param.key]?.trim())
+          .map(param => param.label);
+        
+        if (missingParams.length > 0) {
+          toast({
+            title: "Missing Required Parameters",
+            description: `Please fill in: ${missingParams.join(", ")}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
     }
 
     const request: ApiRequest = {
@@ -205,10 +384,67 @@ export default function ApiTester() {
                 </div>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
-                {/* API Endpoint */}
+                {/* Quick Endpoint Selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                    <List className="w-4 h-4 text-blue-600" />
+                    Quick API Selection
+                  </Label>
+                  <Select value={selectedEndpoint || "custom"} onValueChange={handleEndpointSelect}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose an API endpoint or custom" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Custom URL</SelectItem>
+                      {API_ENDPOINTS.map((endpoint) => (
+                        <SelectItem key={endpoint.id} value={endpoint.id}>
+                          {endpoint.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedEndpoint && (
+                    <p className="text-xs text-slate-600 mt-1">
+                      {API_ENDPOINTS.find(ep => ep.id === selectedEndpoint)?.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Dynamic Parameters */}
+                {selectedEndpoint && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Search className="w-4 h-4 text-green-600" />
+                      <Label className="text-sm font-medium text-slate-700">
+                        Required Parameters
+                      </Label>
+                    </div>
+                    {API_ENDPOINTS.find(ep => ep.id === selectedEndpoint)?.parameters.map((param) => (
+                      <div key={param.key} className="space-y-1">
+                        <Label htmlFor={param.key} className="text-sm font-medium text-slate-700">
+                          {param.label} {param.required && <span className="text-red-500">*</span>}
+                        </Label>
+                        <Input
+                          id={param.key}
+                          type="text"
+                          value={parameters[param.key] || ""}
+                          onChange={(e) => setParameters(prev => ({
+                            ...prev,
+                            [param.key]: e.target.value
+                          }))}
+                          placeholder={param.placeholder}
+                          className="text-sm"
+                          required={param.required}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* API Endpoint URL */}
                 <div className="space-y-2">
                   <Label htmlFor="url" className="text-sm font-medium text-slate-700">
-                    API Endpoint URL
+                    {showCustomUrl ? 'API Endpoint URL' : 'Generated URL'}
                   </Label>
                   <div className="relative">
                     <Input
@@ -218,9 +454,15 @@ export default function ApiTester() {
                       onChange={(e) => setUrl(e.target.value)}
                       placeholder="https://api.brandsforlessuae.com/..."
                       className="font-mono text-sm pr-10"
+                      readOnly={!showCustomUrl}
                     />
                     <Link className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                   </div>
+                  {!showCustomUrl && (
+                    <p className="text-xs text-slate-600 mt-1">
+                      This URL is automatically generated from your parameter inputs above.
+                    </p>
+                  )}
                 </div>
 
                 {/* Access Token */}
