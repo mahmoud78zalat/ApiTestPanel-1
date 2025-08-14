@@ -28,6 +28,8 @@ import {
   Key,
   List,
   Search,
+  Layers,
+  BarChart3,
 } from "lucide-react";
 
 // Predefined API endpoints with dynamic parameters
@@ -193,6 +195,14 @@ export default function ApiTester() {
   const [selectedEndpoint, setSelectedEndpoint] = useState<string>("");
   const [parameters, setParameters] = useState<Record<string, string>>({});
   const [showCustomUrl, setShowCustomUrl] = useState(true);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkInput, setBulkInput] = useState("");
+  const [bulkResults, setBulkResults] = useState<Array<{
+    value: string;
+    status: 'success' | 'error' | 'pending';
+    response?: ApiResponse;
+    error?: string;
+  }>>([]);
 
   // Helper function to construct URL from template and parameters
   const constructUrl = (templateUrl: string, params: Record<string, string>) => {
@@ -265,7 +275,95 @@ export default function ApiTester() {
     },
   });
 
+  // Bulk processing function
+  const processBulkRequests = async () => {
+    if (!bulkInput.trim()) {
+      toast({
+        title: "No bulk data",
+        description: "Please enter values to process in bulk mode",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const values = bulkInput.split('\n').filter(v => v.trim()).map(v => v.trim());
+    if (values.length === 0) {
+      toast({
+        title: "No valid values",
+        description: "Please enter valid values separated by new lines",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Initialize results
+    const initialResults = values.map(value => ({
+      value,
+      status: 'pending' as const,
+    }));
+    setBulkResults(initialResults);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Process each value
+    for (let i = 0; i < values.length; i++) {
+      const value = values[i];
+      
+      try {
+        // Get the first required parameter from selected endpoint
+        let requestUrl = url;
+        if (selectedEndpoint) {
+          const endpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
+          if (endpoint && endpoint.parameters.length > 0) {
+            const firstParam = endpoint.parameters[0];
+            const updatedParams = { ...parameters, [firstParam.key]: value };
+            requestUrl = constructUrl(endpoint.url, updatedParams);
+          }
+        } else {
+          // For custom URLs, try to replace common patterns
+          requestUrl = url.replace(/\{[^}]+\}/, encodeURIComponent(value));
+        }
+
+        const request: ApiRequest = {
+          url: requestUrl,
+          method,
+          token: token.trim(),
+        };
+
+        const res = await apiRequest("POST", "/api/proxy", request);
+        const data = await res.json();
+        
+        setBulkResults(prev => prev.map((result, index) => 
+          index === i ? { ...result, status: 'success', response: data } : result
+        ));
+        successCount++;
+        
+      } catch (error: any) {
+        setBulkResults(prev => prev.map((result, index) => 
+          index === i ? { ...result, status: 'error', error: error.message } : result
+        ));
+        errorCount++;
+      }
+      
+      // Small delay to prevent overwhelming the API
+      if (i < values.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    toast({
+      title: "Bulk processing completed",
+      description: `${successCount} succeeded, ${errorCount} failed out of ${values.length} requests`,
+    });
+  };
+
   const handleExecute = () => {
+    if (bulkMode) {
+      processBulkRequests();
+      return;
+    }
+
     if (!url.trim()) {
       toast({
         title: "Missing URL",
@@ -315,6 +413,8 @@ export default function ApiTester() {
   const handleClear = () => {
     setResponse(null);
     setError(null);
+    setBulkResults([]);
+    setBulkInput("");
   };
 
   const handleCopyResponse = async () => {
@@ -548,22 +648,61 @@ export default function ApiTester() {
                   </Select>
                 </div>
 
+                {/* Bulk Mode Toggle */}
+                <div className="space-y-3 pt-4 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-purple-600" />
+                      Bulk Processing Mode
+                    </Label>
+                    <Button
+                      onClick={() => setBulkMode(!bulkMode)}
+                      variant={bulkMode ? "default" : "outline"}
+                      size="sm"
+                      className={bulkMode ? "bg-purple-600 hover:bg-purple-700" : ""}
+                    >
+                      {bulkMode ? "ON" : "OFF"}
+                    </Button>
+                  </div>
+                  
+                  {bulkMode && (
+                    <div className="space-y-2">
+                      <Label htmlFor="bulkInput" className="text-sm font-medium text-slate-700">
+                        Bulk Input Values
+                        <span className="text-xs text-slate-500 ml-2">(one per line)</span>
+                      </Label>
+                      <Textarea
+                        id="bulkInput"
+                        value={bulkInput}
+                        onChange={(e) => setBulkInput(e.target.value)}
+                        placeholder="11111&#10;22222&#10;33333&#10;44444"
+                        className="font-mono text-sm resize-none min-h-[100px]"
+                      />
+                      <p className="text-xs text-slate-600">
+                        Each line will be used as the primary parameter value for the selected endpoint.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Execute Button */}
                 <Button
                   onClick={handleExecute}
-                  disabled={proxyMutation.isPending}
-                  className="w-full bg-blue-600 hover:bg-blue-700 transition-all duration-200"
+                  disabled={proxyMutation.isPending || (bulkMode && bulkResults.some(r => r.status === 'pending'))}
+                  className={`w-full transition-all duration-200 ${
+                    bulkMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
                   size="lg"
                 >
-                  {proxyMutation.isPending ? (
+                  {proxyMutation.isPending || (bulkMode && bulkResults.some(r => r.status === 'pending')) ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                      Fetching...
+                      {bulkMode ? 'Processing Bulk...' : 'Fetching...'}
                     </>
                   ) : (
                     <>
-                      <Play className="w-4 h-4 mr-2" />
-                      Execute Request
+                      {bulkMode ? <Layers className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                      {bulkMode ? 'Execute Bulk Requests' : 'Execute Request'}
                     </>
                   )}
                 </Button>
@@ -603,9 +742,15 @@ export default function ApiTester() {
               <CardHeader className="bg-slate-50 border-b">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <Code className="w-5 h-5 text-blue-600" />
-                    <h2 className="text-lg font-semibold text-slate-900">API Response</h2>
-                    {response && (
+                    {bulkMode ? (
+                      <BarChart3 className="w-5 h-5 text-purple-600" />
+                    ) : (
+                      <Code className="w-5 h-5 text-blue-600" />
+                    )}
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      {bulkMode ? 'Bulk Processing Results' : 'API Response'}
+                    </h2>
+                    {!bulkMode && response && (
                       <Badge
                         variant={response.status >= 200 && response.status < 300 ? "default" : "destructive"}
                         className={response.status >= 200 && response.status < 300 ? "bg-green-100 text-green-800" : ""}
@@ -618,7 +763,12 @@ export default function ApiTester() {
                         {response.status} {response.statusText}
                       </Badge>
                     )}
-                    {error && (
+                    {bulkMode && bulkResults.length > 0 && (
+                      <Badge className="bg-purple-100 text-purple-800">
+                        {bulkResults.filter(r => r.status === 'success').length} / {bulkResults.length} successful
+                      </Badge>
+                    )}
+                    {!bulkMode && error && (
                       <Badge variant="destructive">
                         <AlertTriangle className="w-3 h-3 mr-1" />
                         Error
@@ -641,34 +791,114 @@ export default function ApiTester() {
 
               {/* Response Content */}
               <CardContent className="p-6">
-                {!response && !error && !proxyMutation.isPending && (
+                {!response && !error && !proxyMutation.isPending && bulkResults.length === 0 && (
                   <div className="min-h-[400px] flex items-center justify-center">
                     <div className="text-center">
                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Play className="w-6 h-6 text-slate-400" />
                       </div>
                       <p className="text-slate-500 text-lg font-medium mb-2">Ready to Execute</p>
-                      <p className="text-slate-400 text-sm">Configure your request and click "Execute Request" to see the API response</p>
+                      <p className="text-slate-400 text-sm">
+                        Configure your request and click "{bulkMode ? 'Execute Bulk Requests' : 'Execute Request'}" to see the API response
+                      </p>
                     </div>
                   </div>
                 )}
 
-                {proxyMutation.isPending && (
+                {(proxyMutation.isPending || bulkResults.some(r => r.status === 'pending')) && (
                   <div className="min-h-[400px] flex items-center justify-center">
                     <div className="text-center">
                       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                      <p className="text-slate-600 font-medium">Executing request...</p>
+                      <p className="text-slate-600 font-medium">
+                        {bulkMode ? 'Processing bulk requests...' : 'Executing request...'}
+                      </p>
                     </div>
                   </div>
                 )}
 
-                {response && (
+                {/* Bulk Results Display */}
+                {bulkMode && bulkResults.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-purple-600" />
+                        Bulk Processing Results
+                      </h3>
+                      <div className="flex gap-4 text-sm">
+                        <span className="text-green-600 font-medium">
+                          ✓ {bulkResults.filter(r => r.status === 'success').length} Success
+                        </span>
+                        <span className="text-red-600 font-medium">
+                          ✗ {bulkResults.filter(r => r.status === 'error').length} Failed
+                        </span>
+                        <span className="text-yellow-600 font-medium">
+                          ⏳ {bulkResults.filter(r => r.status === 'pending').length} Pending
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                      {bulkResults.map((result, index) => (
+                        <div
+                          key={index}
+                          className={`border rounded-lg p-4 ${
+                            result.status === 'success' ? 'border-green-200 bg-green-50' :
+                            result.status === 'error' ? 'border-red-200 bg-red-50' :
+                            'border-yellow-200 bg-yellow-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-medium">#{index + 1}</span>
+                              <span className="font-mono text-sm bg-white px-2 py-1 rounded border">
+                                {result.value}
+                              </span>
+                            </div>
+                            <Badge
+                              variant={result.status === 'success' ? 'default' : 'destructive'}
+                              className={
+                                result.status === 'success' ? 'bg-green-100 text-green-800' :
+                                result.status === 'error' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }
+                            >
+                              {result.status === 'success' && result.response && (
+                                <span>{result.response.status} {result.response.statusText}</span>
+                              )}
+                              {result.status === 'error' && 'Error'}
+                              {result.status === 'pending' && 'Processing...'}
+                            </Badge>
+                          </div>
+                          
+                          {result.status === 'success' && result.response && (
+                            <div className="mt-3">
+                              <div className="text-xs text-slate-600 mb-2 flex gap-4">
+                                <span>Time: {result.response.responseTime}ms</span>
+                                <span>Size: {formatBytes(result.response.size)}</span>
+                              </div>
+                              <JsonViewer data={result.response.data} />
+                            </div>
+                          )}
+                          
+                          {result.status === 'error' && (
+                            <div className="mt-2 text-red-700 text-sm">
+                              {result.error}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Single Response Display */}
+                {!bulkMode && response && (
                   <div>
                     <JsonViewer data={response.data} />
                   </div>
                 )}
 
-                {error && (
+                {!bulkMode && error && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                     <div className="flex items-start">
                       <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 mr-3 flex-shrink-0" />

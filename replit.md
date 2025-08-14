@@ -55,3 +55,11 @@ The application uses a monorepo structure with shared TypeScript schemas between
   - Cancel User Order: Cancels orders using the DELETE method
 - Updated both frontend and backend validation to handle the expanded HTTP method set
 - Enhanced backend request handling to properly exclude request bodies for methods that don't support them (GET, HEAD, OPTIONS)
+- **Added Bulk Processing Mode**: New feature that allows processing multiple values at once
+  - Toggle between single request and bulk mode
+  - Input multiple values (IDs, phone numbers, emails) separated by newlines
+  - Each value automatically replaces the primary parameter in the selected endpoint
+  - Visual results dashboard showing success/failure status for each request
+  - Real-time processing with individual response data and error details
+  - Summary statistics showing total successful vs failed requests
+  - Color-coded results with green (success), red (error), and yellow (pending) indicators
