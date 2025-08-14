@@ -28,7 +28,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         headers,
       };
 
-      if (validatedRequest.body && validatedRequest.method !== "GET") {
+      if (validatedRequest.body && !["GET", "HEAD", "OPTIONS"].includes(validatedRequest.method)) {
         fetchOptions.body = validatedRequest.body;
         headers["content-type"] = "application/json";
       }

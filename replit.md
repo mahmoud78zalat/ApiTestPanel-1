@@ -44,3 +44,14 @@ Preferred communication style: Simple, everyday language.
 - **Development Tools**: Replit-specific plugins for development environment integration
 
 The application uses a monorepo structure with shared TypeScript schemas between client and server, ensuring type safety across the full stack. The proxy architecture allows for secure API testing while handling authentication, CORS, and request/response transformation transparently.
+
+# Recent Changes
+
+## August 14, 2025
+- Extended HTTP method support to include HEAD, OPTIONS, TRACE, and CONNECT methods
+- Added three new API endpoint presets:
+  - Fetch User SMS Messages: Retrieves SMS messages for a specific phone number
+  - Fetch User Email Messages: Retrieves email messages for a specific email address  
+  - Cancel User Order: Cancels orders using the DELETE method
+- Updated both frontend and backend validation to handle the expanded HTTP method set
+- Enhanced backend request handling to properly exclude request bodies for methods that don't support them (GET, HEAD, OPTIONS)

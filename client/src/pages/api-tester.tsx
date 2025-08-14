@@ -36,7 +36,7 @@ interface ApiEndpoint {
   name: string;
   description: string;
   url: string;
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" | "TRACE" | "CONNECT";
   parameters: Array<{
     key: string;
     label: string;
@@ -135,13 +135,58 @@ const API_ENDPOINTS: ApiEndpoint[] = [
         required: true
       }
     ]
+  },
+  {
+    id: "fetch-sms",
+    name: "Fetch User SMS Messages",
+    description: "Fetches users SMS messages",
+    url: "https://api.brandsforlessuae.com/customer/api/v1/sms?customerId=-1&mobile={phonenumber}&index=1&pageSize=10",
+    method: "GET",
+    parameters: [
+      {
+        key: "phonenumber",
+        label: "Phone Number",
+        placeholder: "Enter phone number (e.g., +971501234567)",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "fetch-email",
+    name: "Fetch User Email Messages",
+    description: "Fetches users email messages",
+    url: "https://api.brandsforlessuae.com/customer/api/v1/email?customerId=-1&email={email}&index=1&pageSize=10",
+    method: "GET",
+    parameters: [
+      {
+        key: "email",
+        label: "Email Address",
+        placeholder: "Enter email address (e.g., user@example.com)",
+        required: true
+      }
+    ]
+  },
+  {
+    id: "cancel-order",
+    name: "Cancel User Order",
+    description: "Cancels users orders",
+    url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order/{orderid}",
+    method: "DELETE",
+    parameters: [
+      {
+        key: "orderid",
+        label: "Order ID",
+        placeholder: "Enter order ID (e.g., 1932179)",
+        required: true
+      }
+    ]
   }
 ];
 
 export default function ApiTester() {
   const { toast } = useToast();
   const [url, setUrl] = useState("https://api.brandsforlessuae.com/customer/api/v1/address?customerId=1932179");
-  const [method, setMethod] = useState<"GET" | "POST" | "PUT" | "DELETE" | "PATCH">("GET");
+  const [method, setMethod] = useState<"GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" | "TRACE" | "CONNECT">("GET");
   const [token, setToken] = useState("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7InVzZXJJZCI6MTQwMiwibmFtZSI6IkNhcm9saW5lIFdhZ3VpaCBGcmFuY2lzIiwiYXBwTmFtZSI6ImFkbWlucGFuZWwiLCJkYXRhc2VudGVyIjoidWFlIn0sImlhdCI6MTc1NTAxODA3NywiZXhwIjoxNzg2NTU0MDc3fQ.H4rQyaqsZ30hdooK9P8ropw2zea9bDstReZLuBeeK0g");
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -495,6 +540,10 @@ export default function ApiTester() {
                       <SelectItem value="PUT">PUT</SelectItem>
                       <SelectItem value="DELETE">DELETE</SelectItem>
                       <SelectItem value="PATCH">PATCH</SelectItem>
+                      <SelectItem value="HEAD">HEAD</SelectItem>
+                      <SelectItem value="OPTIONS">OPTIONS</SelectItem>
+                      <SelectItem value="TRACE">TRACE</SelectItem>
+                      <SelectItem value="CONNECT">CONNECT</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

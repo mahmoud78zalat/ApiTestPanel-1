@@ -20,7 +20,7 @@ export type User = typeof users.$inferSelect;
 // API Testing schemas
 export const apiRequestSchema = z.object({
   url: z.string().url(),
-  method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]).default("GET"),
+  method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "TRACE", "CONNECT"]).default("GET"),
   headers: z.record(z.string()).optional(),
   body: z.string().optional(),
   token: z.string().optional(),
