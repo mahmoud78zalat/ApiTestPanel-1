@@ -198,7 +198,7 @@ const API_ENDPOINTS: ApiEndpoint[] = [
       {
         key: "customerid",
         label: "Customer ID or Order ID",
-        placeholder: "Enter customer ID (e.g., 1932179) or order ID (e.g., A1234567)",
+        placeholder: "Enter customer ID (e.g., 1932179) or valid order ID (e.g., A1234567)",
         required: true
       }
     ]
@@ -510,8 +510,11 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         const orderRes = await apiRequest("POST", "/api/proxy", orderRequest);
         const orderData = await orderRes.json();
         
-        if (orderData.status === 200 && orderData.data) {
-          const actualOrderData = orderData.data.data || orderData.data;
+        // Debug log the complete response
+        console.log('Order API Response:', orderData);
+        
+        if (orderData.status === 200 && orderData.data && orderData.data.data) {
+          const actualOrderData = orderData.data.data;
           const customerId = actualOrderData.customerId || 
                             actualOrderData.userId || 
                             actualOrderData.customer_id ||
@@ -530,14 +533,24 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
             console.error('Order data structure:', actualOrderData);
             throw new Error(`Customer ID not found in order details. Available fields: ${Object.keys(actualOrderData).join(', ')}`);
           }
+        } else if (orderData.data && orderData.data.status === false) {
+          // Handle API response format: {data: {status: false, message: "No record found"}}
+          throw new Error(`Order not found: ${orderData.data.message || 'No record found for this order ID'}`);
         } else {
-          throw new Error(`Failed to fetch order details: ${orderData.statusText || 'Unknown error'}`);
+          throw new Error(`Failed to fetch order details: ${orderData.statusText || orderData.data?.message || 'Unknown error'}`);
         }
       } catch (error) {
+        console.error('Order lookup error:', error);
         toast({
           title: "Order lookup failed",
-          description: error.message || "Could not fetch customer from order ID",
+          description: error.message || "Could not fetch customer from order ID. Please verify the order ID exists and try again.",
           variant: "destructive",
+        });
+        
+        // Suggest fallback to customer ID
+        toast({
+          title: "Alternative suggestion",
+          description: "If you have the customer ID instead, you can enter it directly (e.g., 1932179)",
         });
       }
     } else {
