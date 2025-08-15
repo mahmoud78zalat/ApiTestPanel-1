@@ -171,14 +171,14 @@ const API_ENDPOINTS: ApiEndpoint[] = [
   {
     id: "cancel-order",
     name: "Cancel User Order",
-    description: "Cancels users orders",
-    url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order/{orderid}",
-    method: "DELETE",
+    description: "Cancels users orders (two-step process: fetch order details then cancel)",
+    url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order",
+    method: "POST",
     parameters: [
       {
         key: "orderid",
         label: "Order ID",
-        placeholder: "Enter order ID (e.g., 1932179)",
+        placeholder: "Enter order ID (e.g., A235841600001-1)",
         required: true
       }
     ]
@@ -211,6 +211,26 @@ export default function ApiTester() {
       constructedUrl = constructedUrl.replace(`{${key}}`, encodeURIComponent(value));
     });
     return constructedUrl;
+  };
+
+  // Helper function to calculate customerId from orderId
+  const calculateCustomerId = (orderId: string): number => {
+    // Remove dash and everything after it (e.g. A235841600001-1 -> A235841600001)
+    let cleanOrderId = orderId.split('-')[0];
+    
+    // Remove the first letter if present (e.g. A235841600001 -> 235841600001)
+    cleanOrderId = cleanOrderId.replace(/^[A-Za-z]/, '');
+    
+    // Remove first digit and last 5 digits
+    // Example: 235841600001 -> remove first digit (2) -> 35841600001 -> remove last 5 digits -> 358416
+    if (cleanOrderId.length > 6) {
+      const withoutFirst = cleanOrderId.substring(1);
+      const customerId = withoutFirst.substring(0, withoutFirst.length - 5);
+      return parseInt(customerId, 10);
+    }
+    
+    // Fallback if orderId format is unexpected
+    return parseInt(cleanOrderId, 10) || 0;
   };
 
   // Handle endpoint selection
@@ -311,33 +331,97 @@ export default function ApiTester() {
       const value = values[i];
       
       try {
-        // Get the first required parameter from selected endpoint
-        let requestUrl = url;
-        if (selectedEndpoint) {
-          const endpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
-          if (endpoint && endpoint.parameters.length > 0) {
-            const firstParam = endpoint.parameters[0];
-            const updatedParams = { ...parameters, [firstParam.key]: value };
-            requestUrl = constructUrl(endpoint.url, updatedParams);
+        // Special handling for cancel-order in bulk mode
+        if (selectedEndpoint === "cancel-order") {
+          // Step 1: Get order details
+          const getOrderRequest: ApiRequest = {
+            url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${value}`,
+            method: "GET",
+            token: token.trim(),
+          };
+
+          const getOrderRes = await apiRequest("POST", "/api/proxy", getOrderRequest);
+          const getOrderData = await getOrderRes.json();
+          
+          if (!getOrderData.success) {
+            throw new Error(getOrderData.error || "Failed to fetch order details");
           }
+
+          const orderDetails = getOrderData.data;
+          const currencyCode = orderDetails.currencyCode;
+          
+          if (!currencyCode) {
+            throw new Error("Currency code not found in order details");
+          }
+
+          // Step 2: Calculate customerId
+          const customerId = calculateCustomerId(value);
+
+          // Step 3: Cancel the order
+          const cancelPayload = {
+            action: "CANCEL",
+            assignee: 92,
+            cancelItems: [],
+            cancelType: "CUSTOMER_CANCELLATION", 
+            comment: "",
+            createdBy: 1402,
+            currencyCode: currencyCode,
+            customerId: customerId,
+            orderId: value,
+            reason: "Ordered By Mistake",
+            reasonId: 8,
+            refundMode: "RETURN_TO_SOURCE",
+            source: "CS",
+            status: 0
+          };
+
+          const cancelRequest: ApiRequest = {
+            url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order",
+            method: "POST",
+            token: token.trim(),
+            body: JSON.stringify(cancelPayload),
+            headers: {
+              "Content-Type": "application/json"
+            }
+          };
+
+          const res = await apiRequest("POST", "/api/proxy", cancelRequest);
+          const data = await res.json();
+          
+          setBulkResults(prev => prev.map((result, index) => 
+            index === i ? { ...result, status: 'success', response: data } : result
+          ));
+          successCount++;
+          
         } else {
-          // For custom URLs, try to replace common patterns
-          requestUrl = url.replace(/\{[^}]+\}/, encodeURIComponent(value));
+          // Regular processing for other endpoints
+          let requestUrl = url;
+          if (selectedEndpoint) {
+            const endpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
+            if (endpoint && endpoint.parameters.length > 0) {
+              const firstParam = endpoint.parameters[0];
+              const updatedParams = { ...parameters, [firstParam.key]: value };
+              requestUrl = constructUrl(endpoint.url, updatedParams);
+            }
+          } else {
+            // For custom URLs, try to replace common patterns
+            requestUrl = url.replace(/\{[^}]+\}/, encodeURIComponent(value));
+          }
+
+          const request: ApiRequest = {
+            url: requestUrl,
+            method,
+            token: token.trim(),
+          };
+
+          const res = await apiRequest("POST", "/api/proxy", request);
+          const data = await res.json();
+          
+          setBulkResults(prev => prev.map((result, index) => 
+            index === i ? { ...result, status: 'success', response: data } : result
+          ));
+          successCount++;
         }
-
-        const request: ApiRequest = {
-          url: requestUrl,
-          method,
-          token: token.trim(),
-        };
-
-        const res = await apiRequest("POST", "/api/proxy", request);
-        const data = await res.json();
-        
-        setBulkResults(prev => prev.map((result, index) => 
-          index === i ? { ...result, status: 'success', response: data } : result
-        ));
-        successCount++;
         
       } catch (error: any) {
         setBulkResults(prev => prev.map((result, index) => 
@@ -356,6 +440,82 @@ export default function ApiTester() {
       title: "Bulk processing completed",
       description: `${successCount} succeeded, ${errorCount} failed out of ${values.length} requests`,
     });
+  };
+
+  // Special handling for cancel order endpoint
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      // Step 1: Get order details
+      const getOrderRequest: ApiRequest = {
+        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+        method: "GET",
+        token: token.trim(),
+      };
+
+      const getOrderRes = await apiRequest("POST", "/api/proxy", getOrderRequest);
+      const getOrderData = await getOrderRes.json();
+      
+      if (!getOrderData.success) {
+        throw new Error(getOrderData.error || "Failed to fetch order details");
+      }
+
+      const orderDetails = getOrderData.data;
+      const currencyCode = orderDetails.currencyCode;
+      
+      if (!currencyCode) {
+        throw new Error("Currency code not found in order details");
+      }
+
+      // Step 2: Calculate customerId
+      const customerId = calculateCustomerId(orderId);
+
+      // Step 3: Cancel the order
+      const cancelPayload = {
+        action: "CANCEL",
+        assignee: 92,
+        cancelItems: [],
+        cancelType: "CUSTOMER_CANCELLATION", 
+        comment: "",
+        createdBy: 1402,
+        currencyCode: currencyCode,
+        customerId: customerId,
+        orderId: orderId,
+        reason: "Ordered By Mistake",
+        reasonId: 8,
+        refundMode: "RETURN_TO_SOURCE",
+        source: "CS",
+        status: 0
+      };
+
+      const cancelRequest: ApiRequest = {
+        url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order",
+        method: "POST",
+        token: token.trim(),
+        body: JSON.stringify(cancelPayload),
+        headers: {
+          "Content-Type": "application/json"
+        }
+      };
+
+      const cancelRes = await apiRequest("POST", "/api/proxy", cancelRequest);
+      const cancelData = await cancelRes.json();
+      
+      setResponse(cancelData);
+      setError(null);
+      toast({
+        title: "Order cancellation completed!",
+        description: `Status: ${cancelData.status} - ${cancelData.responseTime}ms`,
+      });
+      
+    } catch (error: any) {
+      setError(error.message || "Cancel order request failed");
+      setResponse(null);
+      toast({
+        title: "Cancel order failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleExecute = () => {
@@ -397,6 +557,15 @@ export default function ApiTester() {
             variant: "destructive",
           });
           return;
+        }
+        
+        // Special handling for cancel order
+        if (selectedEndpoint === "cancel-order") {
+          const orderId = parameters.orderid?.trim();
+          if (orderId) {
+            handleCancelOrder(orderId);
+            return;
+          }
         }
       }
     }
