@@ -305,22 +305,27 @@ export default function ApiTester() {
       'Order 1 ID',
       'Order 1 Date',
       'Order 1 Amount',
+      'Order 1 Status',
       'Order 1 Invoice URL',
       'Order 2 ID',
       'Order 2 Date', 
       'Order 2 Amount',
+      'Order 2 Status',
       'Order 2 Invoice URL',
       'Order 3 ID',
       'Order 3 Date',
-      'Order 3 Amount', 
+      'Order 3 Amount',
+      'Order 3 Status', 
       'Order 3 Invoice URL',
       'Order 4 ID',
       'Order 4 Date',
       'Order 4 Amount',
+      'Order 4 Status',
       'Order 4 Invoice URL',
       'Order 5 ID',
       'Order 5 Date',
       'Order 5 Amount',
+      'Order 5 Status',
       'Order 5 Invoice URL',
       'Fetched At'
     ];
@@ -339,10 +344,11 @@ export default function ApiTester() {
             order.orderId || order.id || '',
             order.createDate || order.date || order.orderDate || '',
             order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0,
+            order.orderStatus || order.status || 'Unknown',
             order.invoiceUrl || order.invoice_url || order.invoiceLink || ''
           );
         } else {
-          orderData.push('', '', '', ''); // Empty fields for missing orders
+          orderData.push('', '', '', '', ''); // Empty fields for missing orders
         }
       }
       
@@ -405,11 +411,13 @@ export default function ApiTester() {
           const orderAmount = order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
           const invoiceUrl = order.invoiceUrl || order.invoice_url || order.invoiceLink || 'N/A';
           const orderDate = order.createDate || order.date || order.orderDate || 'N/A';
+          const orderStatus = order.orderStatus || order.status || 'Unknown';
           
           return `  Order ${orderIndex + 1}:
     ID: ${order.orderId || order.id || 'N/A'}
     Date: ${orderDate}
     Amount: ${orderAmount}
+    Status: ${orderStatus}
     Invoice URL: ${invoiceUrl}`;
         }).join('\n\n');
       } else {
@@ -713,7 +721,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                 if (!orderId) {
                   return {
                     ...order,
-                    invoiceUrl: null
+                    invoiceUrl: null,
+                    orderStatus: order.status || order.orderStatus || 'Unknown'
                   };
                 }
                 
@@ -732,21 +741,26 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                   const orderData = orderDetailsData.data.data;
                   const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
                                    orderData.receiptUrl || orderData.receipt_url || null;
+                  const orderStatus = orderData.status || orderData.orderStatus || orderData.shipmentStatus || 
+                                    orderData.orderState || order.status || order.orderStatus || 'Unknown';
                   
                   return {
                     ...order,
-                    invoiceUrl: invoiceUrl
+                    invoiceUrl: invoiceUrl,
+                    orderStatus: orderStatus
                   };
                 } else {
                   return {
                     ...order,
-                    invoiceUrl: null
+                    invoiceUrl: null,
+                    orderStatus: order.status || order.orderStatus || 'Unknown'
                   };
                 }
               } catch (error) {
                 return {
                   ...order,
-                  invoiceUrl: null
+                  invoiceUrl: null,
+                  orderStatus: order.status || order.orderStatus || 'Unknown'
                 };
               }
             });
