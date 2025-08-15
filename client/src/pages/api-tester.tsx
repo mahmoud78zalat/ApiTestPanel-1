@@ -34,6 +34,7 @@ import {
   Trash2,
   Eye,
   Download,
+  FileText as FileTextIcon,
 } from "lucide-react";
 
 // Predefined API endpoints with dynamic parameters
@@ -289,15 +290,12 @@ export default function ApiTester() {
       return;
     }
 
-    // Define CSV headers
+    // Define CSV headers (only fields that actually exist)
     const headers = [
       'Customer ID',
       'Full Name',
       'Email',
       'Phone Number',
-      'Gender',
-      'Birth Date',
-      'Register Date',
       'Total Orders',
       'Total Purchase Amount',
       'Latest Order Date',
@@ -320,9 +318,6 @@ export default function ApiTester() {
         `"${profile.fullName || ''}"`,
         profile.email || '',
         profile.phoneNumber || '',
-        profile.gender || '',
-        profile.birthDate || '',
-        profile.registerDate || '',
         profile.latestOrders ? profile.latestOrders.length : 0,
         profile.totalPurchasesAmount || 0,
         latestOrder ? (latestOrder.createDate || latestOrder.date || latestOrder.orderDate || '') : '',
@@ -353,6 +348,65 @@ export default function ApiTester() {
     toast({
       title: "Export successful",
       description: `Exported ${collectedProfiles.length} customer profiles to CSV`,
+    });
+  };
+
+  // TXT Export function
+  const exportToTXT = () => {
+    if (collectedProfiles.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "Please collect some customer profiles first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create formatted text content
+    const txtContent = collectedProfiles.map((profile, index) => {
+      const latestOrder = profile.latestOrders && profile.latestOrders.length > 0 ? profile.latestOrders[0] : null;
+      const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+      
+      return `=== CUSTOMER PROFILE #${index + 1} ===
+Customer ID: ${profile.customerId || 'N/A'}
+Full Name: ${profile.fullName || 'N/A'}
+Email: ${profile.email || 'N/A'}
+Phone Number: ${profile.phoneNumber || 'N/A'}
+Total Orders: ${profile.latestOrders ? profile.latestOrders.length : 0}
+Total Purchase Amount: ${profile.totalPurchasesAmount || 0}
+
+LATEST ORDER:
+${latestOrder ? `  Order ID: ${latestOrder.orderId || latestOrder.id || 'N/A'}
+  Date: ${latestOrder.createDate || latestOrder.date || latestOrder.orderDate || 'N/A'}
+  Amount: ${latestOrder.transactionPrice || latestOrder.totalAmount || latestOrder.amount || 0}` : '  No orders found'}
+
+ADDRESS INFO:
+  Address Count: ${profile.addresses ? profile.addresses.length : 0}
+${primaryAddress ? `  Primary Address: ${primaryAddress.address || primaryAddress.addressLine1 || primaryAddress.street || 'N/A'}
+  City: ${primaryAddress.city || 'N/A'}
+  Country: ${primaryAddress.country || 'N/A'}` : '  No address found'}
+
+Fetched At: ${profile.fetchedAt || 'N/A'}
+`;
+    }).join('\n' + '='.repeat(50) + '\n\n');
+
+    const header = `CUSTOMER PROFILES EXPORT\nGenerated: ${new Date().toISOString()}\nTotal Profiles: ${collectedProfiles.length}\n\n${'='.repeat(50)}\n\n`;
+    const fullContent = header + txtContent;
+
+    // Create and download file
+    const blob = new Blob([fullContent], { type: 'text/plain;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `customer_profiles_${new Date().toISOString().split('T')[0]}.txt`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export successful",
+      description: `Exported ${collectedProfiles.length} customer profiles to TXT`,
     });
   };
 
@@ -2340,6 +2394,16 @@ export default function ApiTester() {
                       >
                         <Download className="w-4 h-4" />
                         Export CSV
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={exportToTXT}
+                        className="flex items-center gap-1"
+                        data-testid="button-export-txt"
+                      >
+                        <FileTextIcon className="w-4 h-4" />
+                        Export TXT
                       </Button>
                       <Button
                         variant="outline"
