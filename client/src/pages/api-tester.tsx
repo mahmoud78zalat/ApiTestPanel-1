@@ -348,10 +348,17 @@ export default function ApiTester() {
           }
 
           const orderDetails = getOrderData.data;
-          const currencyCode = orderDetails.currencyCode;
+          
+          // Try different possible locations for currency code
+          let currencyCode = orderDetails.currencyCode || 
+                            orderDetails.currency || 
+                            orderDetails.order?.currencyCode || 
+                            orderDetails.data?.currencyCode ||
+                            (orderDetails.length > 0 ? orderDetails[0]?.currencyCode : null);
           
           if (!currencyCode) {
-            throw new Error("Currency code not found in order details");
+            console.log("Order details structure:", JSON.stringify(orderDetails, null, 2));
+            throw new Error("Currency code not found in order details. Check console for data structure.");
           }
 
           // Step 2: Calculate customerId
@@ -460,10 +467,17 @@ export default function ApiTester() {
       }
 
       const orderDetails = getOrderData.data;
-      const currencyCode = orderDetails.currencyCode;
+      
+      // Try different possible locations for currency code
+      let currencyCode = orderDetails.currencyCode || 
+                        orderDetails.currency || 
+                        orderDetails.order?.currencyCode || 
+                        orderDetails.data?.currencyCode ||
+                        (orderDetails.length > 0 ? orderDetails[0]?.currencyCode : null);
       
       if (!currencyCode) {
-        throw new Error("Currency code not found in order details");
+        console.log("Order details structure:", JSON.stringify(orderDetails, null, 2));
+        throw new Error("Currency code not found in order details. Check console for data structure.");
       }
 
       // Step 2: Calculate customerId
