@@ -298,20 +298,53 @@ export default function ApiTester() {
       'Phone Number',
       'Total Orders',
       'Total Purchase Amount',
-      'Latest Order Date',
-      'Latest Order ID',
-      'Latest Order Amount',
       'Address Count',
       'Primary Address',
       'Primary City',
       'Primary Country',
+      'Order 1 ID',
+      'Order 1 Date',
+      'Order 1 Amount',
+      'Order 1 Invoice URL',
+      'Order 2 ID',
+      'Order 2 Date', 
+      'Order 2 Amount',
+      'Order 2 Invoice URL',
+      'Order 3 ID',
+      'Order 3 Date',
+      'Order 3 Amount', 
+      'Order 3 Invoice URL',
+      'Order 4 ID',
+      'Order 4 Date',
+      'Order 4 Amount',
+      'Order 4 Invoice URL',
+      'Order 5 ID',
+      'Order 5 Date',
+      'Order 5 Amount',
+      'Order 5 Invoice URL',
       'Fetched At'
     ];
 
     // Convert profiles to CSV rows
     const csvRows = collectedProfiles.map(profile => {
-      const latestOrder = profile.latestOrders && profile.latestOrders.length > 0 ? profile.latestOrders[0] : null;
       const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+      const orders = profile.latestOrders || [];
+      
+      // Prepare order data for up to 5 orders
+      const orderData = [];
+      for (let i = 0; i < 5; i++) {
+        const order = orders[i];
+        if (order) {
+          orderData.push(
+            order.orderId || order.id || '',
+            order.createDate || order.date || order.orderDate || '',
+            order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0,
+            order.invoiceUrl || order.invoice_url || order.invoiceLink || ''
+          );
+        } else {
+          orderData.push('', '', '', ''); // Empty fields for missing orders
+        }
+      }
       
       return [
         profile.customerId || '',
@@ -320,13 +353,11 @@ export default function ApiTester() {
         profile.phoneNumber || '',
         profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0),
         profile.totalPurchasesAmount || 0,
-        latestOrder ? (latestOrder.createDate || latestOrder.date || latestOrder.orderDate || '') : '',
-        latestOrder ? (latestOrder.orderId || latestOrder.id || '') : '',
-        latestOrder ? (latestOrder.transactionPrice || latestOrder.totalAmount || latestOrder.amount || 0) : 0,
         profile.addresses ? profile.addresses.length : 0,
         primaryAddress ? `"${primaryAddress.address || primaryAddress.addressLine1 || primaryAddress.street || ''}"` : '',
         primaryAddress ? (primaryAddress.city || '') : '',
         primaryAddress ? (primaryAddress.country || '') : '',
+        ...orderData,
         profile.fetchedAt || ''
       ].join(',');
     });
@@ -364,8 +395,26 @@ export default function ApiTester() {
 
     // Create formatted text content
     const txtContent = collectedProfiles.map((profile, index) => {
-      const latestOrder = profile.latestOrders && profile.latestOrders.length > 0 ? profile.latestOrders[0] : null;
       const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+      const orders = profile.latestOrders || [];
+      
+      // Format latest orders section
+      let ordersSection = '';
+      if (orders.length > 0) {
+        ordersSection = orders.slice(0, 5).map((order, orderIndex) => {
+          const orderAmount = order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
+          const invoiceUrl = order.invoiceUrl || order.invoice_url || order.invoiceLink || 'N/A';
+          const orderDate = order.createDate || order.date || order.orderDate || 'N/A';
+          
+          return `  Order ${orderIndex + 1}:
+    ID: ${order.orderId || order.id || 'N/A'}
+    Date: ${orderDate}
+    Amount: ${orderAmount}
+    Invoice URL: ${invoiceUrl}`;
+        }).join('\n\n');
+      } else {
+        ordersSection = '  No orders found';
+      }
       
       return `=== CUSTOMER PROFILE #${index + 1} ===
 Customer ID: ${profile.customerId || 'N/A'}
@@ -375,10 +424,8 @@ Phone Number: ${profile.phoneNumber || 'N/A'}
 Total Orders: ${profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0)}
 Total Purchase Amount: ${profile.totalPurchasesAmount || 0}
 
-LATEST ORDER:
-${latestOrder ? `  Order ID: ${latestOrder.orderId || latestOrder.id || 'N/A'}
-  Date: ${latestOrder.createDate || latestOrder.date || latestOrder.orderDate || 'N/A'}
-  Amount: ${latestOrder.transactionPrice || latestOrder.totalAmount || latestOrder.amount || 0}` : '  No orders found'}
+LATEST 5 ORDERS:
+${ordersSection}
 
 ADDRESS INFO:
   Address Count: ${profile.addresses ? profile.addresses.length : 0}
