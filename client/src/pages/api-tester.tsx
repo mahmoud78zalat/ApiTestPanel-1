@@ -363,6 +363,12 @@ export default function ApiTester() {
 
           // Step 2: Calculate customerId
           const customerId = calculateCustomerId(value);
+          console.log(`Order ID: ${value}, Calculated Customer ID: ${customerId}`);
+
+          // Validate customerId
+          if (!customerId || isNaN(customerId) || customerId === 0) {
+            throw new Error(`Invalid customer ID calculated: ${customerId} from order ID: ${value}`);
+          }
 
           // Step 3: Cancel the order
           const cancelPayload = {
@@ -381,6 +387,8 @@ export default function ApiTester() {
             source: "CS",
             status: 0
           };
+          
+          console.log("Cancel payload:", JSON.stringify(cancelPayload, null, 2));
 
           const cancelRequest: ApiRequest = {
             url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order",
@@ -482,6 +490,12 @@ export default function ApiTester() {
 
       // Step 2: Calculate customerId
       const customerId = calculateCustomerId(orderId);
+      console.log(`Order ID: ${orderId}, Calculated Customer ID: ${customerId}`);
+
+      // Validate customerId
+      if (!customerId || isNaN(customerId) || customerId === 0) {
+        throw new Error(`Invalid customer ID calculated: ${customerId} from order ID: ${orderId}`);
+      }
 
       // Step 3: Cancel the order
       const cancelPayload = {
@@ -500,6 +514,8 @@ export default function ApiTester() {
         source: "CS",
         status: 0
       };
+      
+      console.log("Cancel payload:", JSON.stringify(cancelPayload, null, 2));
 
       const cancelRequest: ApiRequest = {
         url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order",
