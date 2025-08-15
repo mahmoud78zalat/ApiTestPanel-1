@@ -779,8 +779,34 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                   const orderData = orderDetailsData.data.data;
                   const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
                                    orderData.receiptUrl || orderData.receipt_url || null;
-                  const orderStatus = orderData.status || orderData.orderStatus || orderData.shipmentStatus || 
-                                    orderData.orderState || order.status || order.orderStatus || 'Unknown';
+                  
+                  // Extract actual order/shipment status with comprehensive field checking
+                  const orderStatus = orderData.orderStatus ||
+                                    orderData.shipmentStatus ||
+                                    orderData.status ||
+                                    orderData.orderState ||
+                                    orderData.deliveryStatus ||
+                                    orderData.shipment_status ||
+                                    orderData.order_status ||
+                                    orderData.currentStatus ||
+                                    orderData.state ||
+                                    // Check nested objects
+                                    orderData.shipment?.status ||
+                                    orderData.shipment?.orderStatus ||
+                                    orderData.delivery?.status ||
+                                    orderData.tracking?.status ||
+                                    // Fallback to original order data
+                                    order.status ||
+                                    order.orderStatus ||
+                                    order.shipmentStatus ||
+                                    'Unknown';
+                  
+                  // Log the extracted status for debugging
+                  console.log(`Order ${orderId} status extracted:`, {
+                    extractedStatus: orderStatus,
+                    availableFields: Object.keys(orderData),
+                    orderData: orderData
+                  });
                   
                   return {
                     ...order,
@@ -1541,7 +1567,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                     if (!orderId) {
                       return {
                         ...order,
-                        invoiceUrl: null
+                        invoiceUrl: null,
+                        orderStatus: order.status || order.orderStatus || order.shipmentStatus || 'Unknown'
                       };
                     }
                     
@@ -1561,20 +1588,44 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                       const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
                                        orderData.receiptUrl || orderData.receipt_url || null;
                       
+                      // Extract actual order/shipment status with comprehensive field checking (bulk processing)
+                      const orderStatus = orderData.orderStatus ||
+                                        orderData.shipmentStatus ||
+                                        orderData.status ||
+                                        orderData.orderState ||
+                                        orderData.deliveryStatus ||
+                                        orderData.shipment_status ||
+                                        orderData.order_status ||
+                                        orderData.currentStatus ||
+                                        orderData.state ||
+                                        // Check nested objects
+                                        orderData.shipment?.status ||
+                                        orderData.shipment?.orderStatus ||
+                                        orderData.delivery?.status ||
+                                        orderData.tracking?.status ||
+                                        // Fallback to original order data
+                                        order.status ||
+                                        order.orderStatus ||
+                                        order.shipmentStatus ||
+                                        'Unknown';
+                      
                       return {
                         ...order,
-                        invoiceUrl: invoiceUrl
+                        invoiceUrl: invoiceUrl,
+                        orderStatus: orderStatus
                       };
                     } else {
                       return {
                         ...order,
-                        invoiceUrl: null
+                        invoiceUrl: null,
+                        orderStatus: order.status || order.orderStatus || order.shipmentStatus || 'Unknown'
                       };
                     }
                   } catch (error) {
                     return {
                       ...order,
-                      invoiceUrl: null
+                      invoiceUrl: null,
+                      orderStatus: order.status || order.orderStatus || order.shipmentStatus || 'Unknown'
                     };
                   }
                 });
