@@ -490,7 +490,8 @@ export default function ApiTester() {
             }, orderDetailsRequest.url);
             
             if (orderDetailsData.status === 200 && orderDetailsData.data) {
-              const orderData = orderDetailsData.data;
+              // The actual order data is nested inside orderDetailsData.data.data
+              const orderData = orderDetailsData.data.data || orderDetailsData.data;
               
               // Try multiple possible email field locations in the order data
               const possibleEmailFields = [
@@ -500,7 +501,7 @@ export default function ApiTester() {
               
               let orderEmail = null;
               
-              // Check direct fields
+              // Check direct fields in the order data
               for (const field of possibleEmailFields) {
                 if (orderData[field] && typeof orderData[field] === 'string' && orderData[field].includes('@')) {
                   orderEmail = orderData[field];
@@ -527,14 +528,20 @@ export default function ApiTester() {
               // Log the complete order data structure for debugging
               addDebugLog('info', 'Order Data Structure Analysis', {
                 orderId: orderId,
-                allOrderDataKeys: Object.keys(orderData),
+                responseStructure: {
+                  hasDataWrapper: !!orderDetailsData.data.data,
+                  actualOrderDataKeys: orderData ? Object.keys(orderData).slice(0, 15) : [],
+                  wrapperKeys: Object.keys(orderDetailsData.data)
+                },
                 extractedEmail: orderEmail || 'No email found',
-                orderDataSample: {
-                  topLevelKeys: Object.keys(orderData).slice(0, 10),
+                orderDataSample: orderData ? {
+                  shippingName: orderData.shippingName,
+                  email: orderData.email,
+                  customerEmail: orderData.customerEmail,
                   hasCustomerObject: !!orderData.customer,
                   hasBillingObject: !!orderData.billing,
                   hasShippingObject: !!orderData.shipping
-                }
+                } : 'No order data'
               });
               
               if (orderEmail && orderEmail.includes('@')) {
