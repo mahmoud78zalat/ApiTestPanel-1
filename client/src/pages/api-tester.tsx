@@ -1543,22 +1543,43 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                 return dateB - dateA;
               });
               
-              // Smart batching strategy for optimal performance - Second instance
-              const BATCH_SIZE = 10;
-              const totalOrders = sortedOrders.length;
+              // Calculate total purchases amount from ALL orders first
+              const totalAmount = orders.reduce((total: number, order: any) => {
+                const orderAmount = parseFloat(
+                  order.subtotal ||
+                  order.subTotal ||
+                  order.transactionPrice || 
+                  order.totalAmount || 
+                  order.amount || 
+                  order.value || 
+                  order.price || 
+                  order.orderTotal || 
+                  order.grandTotal || 
+                  0
+                );
+                return total + orderAmount;
+              }, 0);
               
-              addDebugLog('info', 'Starting Smart Batched Invoice URL Fetching (Bulk)', {
-                totalOrders: totalOrders,
+              profile.totalPurchasesAmount = totalAmount;
+              profile.totalOrdersCount = orders.length;
+              
+              // BULK OPTIMIZATION: Only process latest 5 orders for invoice/status details
+              const latestOrdersForDisplay = sortedOrders.slice(0, 5);
+              const BATCH_SIZE = 5; // Smaller batch for bulk operations
+              
+              addDebugLog('info', 'Starting Optimized Bulk Processing (Latest 5 Orders Only)', {
+                totalOrdersInDB: sortedOrders.length,
+                ordersToProcess: latestOrdersForDisplay.length,
                 batchSize: BATCH_SIZE,
-                estimatedBatches: Math.ceil(totalOrders / BATCH_SIZE),
-                message: 'Using intelligent batching for bulk operations'
+                totalAmountFromAllOrders: totalAmount,
+                message: 'BULK MODE: Processing only latest 5 orders for performance'
               });
               
               let allOrdersWithUrls: any[] = [];
               
-              // Process orders in optimized batches
-              for (let i = 0; i < sortedOrders.length; i += BATCH_SIZE) {
-                const batch = sortedOrders.slice(i, i + BATCH_SIZE);
+              // Process only latest 5 orders for detailed info
+              for (let i = 0; i < latestOrdersForDisplay.length; i += BATCH_SIZE) {
+                const batch = latestOrdersForDisplay.slice(i, i + BATCH_SIZE);
                 
                 // Process current batch concurrently
                 const batchPromises = batch.map(async (order: any) => {
@@ -1638,33 +1659,12 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               // Set all processed orders
               profile.latestOrders = allOrdersWithUrls;
               
-              addDebugLog('info', 'Smart Batched Invoice URL Fetching Complete (Bulk)', {
+              addDebugLog('info', 'Optimized Bulk Processing Complete', {
                 totalOrdersProcessed: allOrdersWithUrls.length,
                 ordersWithInvoiceUrl: allOrdersWithUrls.filter(order => order.invoiceUrl !== null).length,
-                totalBatches: Math.ceil(totalOrders / BATCH_SIZE),
-                message: 'Bulk batching strategy successful!'
+                totalBatches: Math.ceil(latestOrdersForDisplay.length / BATCH_SIZE),
+                message: 'BULK MODE: Latest 5 orders processed successfully!'
               });
-              // Calculate total purchases amount from ALL orders
-              const totalAmount = orders.reduce((total: number, order: any) => {
-                const orderAmount = parseFloat(
-                  order.subtotal ||
-                  order.subTotal ||
-                  order.transactionPrice || 
-                  order.totalAmount || 
-                  order.amount || 
-                  order.value || 
-                  order.price || 
-                  order.orderTotal || 
-                  order.grandTotal || 
-                  0
-                );
-                return total + orderAmount;
-              }, 0);
-              
-              profile.totalPurchasesAmount = totalAmount;
-              
-              // Store total orders count (all orders)
-              profile.totalOrdersCount = orders.length;
             }
           } catch (error) {
             console.warn(`Failed to fetch orders for ${actualCustomerId}:`, error);
