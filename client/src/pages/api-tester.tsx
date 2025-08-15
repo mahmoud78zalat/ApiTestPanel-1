@@ -344,7 +344,13 @@ export default function ApiTester() {
             order.orderId || order.id || '',
             order.createDate || order.date || order.orderDate || '',
             order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0,
-            order.shipStatus || order.status || order.orderStatus || 'Unknown',
+            (() => {
+              const shipmentStatus = order.shipStatus || order.status || 'Unknown';
+              const orderStatus = order.orderStatus || 'Unknown';
+              return shipmentStatus !== 'Unknown' && orderStatus !== 'Unknown' && shipmentStatus !== orderStatus 
+                ? `${shipmentStatus} | ${orderStatus}` 
+                : shipmentStatus !== 'Unknown' ? shipmentStatus : orderStatus;
+            })(),
             order.invoiceUrl || order.invoice_url || order.invoiceLink || ''
           );
         } else {
@@ -411,13 +417,17 @@ export default function ApiTester() {
           const orderAmount = order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
           const invoiceUrl = order.invoiceUrl || order.invoice_url || order.invoiceLink || 'N/A';
           const orderDate = order.createDate || order.date || order.orderDate || 'N/A';
-          const orderStatus = order.shipStatus || order.status || order.orderStatus || 'Unknown';
+          const shipmentStatus = order.shipStatus || order.status || 'Unknown';
+          const orderStatus = order.orderStatus || 'Unknown';
+          const combinedStatus = shipmentStatus !== 'Unknown' && orderStatus !== 'Unknown' && shipmentStatus !== orderStatus 
+            ? `${shipmentStatus} | ${orderStatus}` 
+            : shipmentStatus !== 'Unknown' ? shipmentStatus : orderStatus;
           
           return `  Order ${orderIndex + 1}:
     ID: ${order.orderId || order.id || 'N/A'}
     Date: ${orderDate}
     Amount: ${orderAmount}
-    Status: ${orderStatus}
+    Status: ${combinedStatus}
     Invoice URL: ${invoiceUrl}`;
         }).join('\n\n');
       } else {
