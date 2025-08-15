@@ -458,40 +458,69 @@ export default function ApiTester() {
         console.warn("Failed to fetch orders:", error);
       }
 
-      // Step 3: Get email from order details if we have orders and no email yet
-      if (profile.latestOrders && profile.latestOrders.length > 0 && profile.emails.length === 0) {
-        try {
-          const firstOrderId = profile.latestOrders[0].orderId || profile.latestOrders[0].id;
-          const orderDetailsRequest: ApiRequest = {
-            url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${firstOrderId}`,
-            method: "GET",
-            token: token.trim(),
-          };
+      // Step 3: Get email from order details - Always fetch from orders as it's the most reliable source
+      if (profile.latestOrders && profile.latestOrders.length > 0) {
+        let emailFound = false;
+        
+        // Try to fetch email from the first few orders to ensure we get a valid email
+        const ordersToCheck = profile.latestOrders.slice(0, 3); // Check up to 3 recent orders
+        
+        for (const order of ordersToCheck) {
+          if (emailFound) break;
           
-          addDebugLog('request', 'Fetching Order Details for Email', orderDetailsRequest, orderDetailsRequest.url, orderDetailsRequest.method);
-          const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
-          const orderDetailsData = await orderDetailsRes.json();
-          
-          addDebugLog('response', 'Order Details Response for Email', {
-            status: orderDetailsData.status,
-            statusText: orderDetailsData.statusText,
-            COMPLETE_ORDER_DETAILS: orderDetailsData,
-            emailFound: orderDetailsData.data?.email || orderDetailsData.data?.customerEmail || 'No email found'
-          }, orderDetailsRequest.url);
-          
-          if (orderDetailsData.status === 200 && orderDetailsData.data) {
-            const orderData = orderDetailsData.data;
-            const orderEmail = orderData.email || orderData.customerEmail || orderData.billingEmail || orderData.userEmail;
-            if (orderEmail && !profile.emails.includes(orderEmail)) {
-              profile.emails.push(orderEmail);
-              addDebugLog('info', 'Email Extracted from Order', {
-                orderId: firstOrderId,
-                emailFound: orderEmail
-              });
+          try {
+            const orderId = order.orderId || order.id;
+            if (!orderId) continue;
+            
+            const orderDetailsRequest: ApiRequest = {
+              url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+              method: "GET",
+              token: token.trim(),
+            };
+            
+            addDebugLog('request', 'Fetching Order Details for Email', orderDetailsRequest, orderDetailsRequest.url, orderDetailsRequest.method);
+            const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
+            const orderDetailsData = await orderDetailsRes.json();
+            
+            addDebugLog('response', 'Order Details Response for Email', {
+              status: orderDetailsData.status,
+              statusText: orderDetailsData.statusText,
+              COMPLETE_ORDER_DETAILS: orderDetailsData,
+              emailFound: orderDetailsData.data?.email || orderDetailsData.data?.customerEmail || 'No email found'
+            }, orderDetailsRequest.url);
+            
+            if (orderDetailsData.status === 200 && orderDetailsData.data) {
+              const orderData = orderDetailsData.data;
+              const orderEmail = orderData.email || orderData.customerEmail || orderData.billingEmail || orderData.userEmail;
+              
+              if (orderEmail && orderEmail.includes('@')) {
+                // Clear any existing emails from profile fetch as order email is more reliable
+                const existingEmails = profile.emails.filter(email => email === orderEmail);
+                if (existingEmails.length === 0) {
+                  profile.emails.push(orderEmail);
+                }
+                
+                addDebugLog('info', 'Email Extracted from Order', {
+                  orderId: orderId,
+                  emailFound: orderEmail,
+                  orderNumber: ordersToCheck.indexOf(order) + 1
+                });
+                
+                emailFound = true;
+              }
             }
+          } catch (error) {
+            console.warn(`Failed to fetch email from order ${order.orderId || order.id}:`, error);
+            // Continue to next order
           }
-        } catch (error) {
-          console.warn(`Failed to fetch email from order details:`, error);
+        }
+        
+        // If no email found from orders, keep any email that might have been found from profile
+        if (!emailFound && profile.emails.length === 0) {
+          addDebugLog('warning', 'No Email Found', {
+            message: 'Could not extract email from any of the customer orders',
+            ordersChecked: ordersToCheck.length
+          });
         }
       }
 
