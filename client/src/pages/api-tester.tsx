@@ -172,7 +172,7 @@ const API_ENDPOINTS: ApiEndpoint[] = [
     id: "cancel-order",
     name: "Cancel User Order",
     description: "Cancels users orders (two-step process: fetch order details then cancel)",
-    url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order",
+    url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order/{orderid}",
     method: "POST",
     parameters: [
       {
