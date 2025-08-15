@@ -366,19 +366,25 @@ export default function ApiTester() {
                             orderDetails.data?.currencyCode ||
                             (orderDetails.length > 0 ? orderDetails[0]?.currencyCode : null);
           
+          // Try different possible locations for customer ID
+          let customerId = orderDetails.customerId || 
+                          orderDetails.userId || 
+                          orderDetails.customer?.id || 
+                          orderDetails.order?.customerId ||
+                          orderDetails.data?.customerId ||
+                          (orderDetails.length > 0 ? orderDetails[0]?.customerId : null);
+          
           if (!currencyCode) {
             console.log("Order details structure:", JSON.stringify(orderDetails, null, 2));
             throw new Error("Currency code not found in order details. Check console for data structure.");
           }
-
-          // Step 2: Calculate customerId from orderId
-          const customerId = calculateCustomerId(value);
-          console.log(`Order ID: ${value}, Calculated Customer ID: ${customerId}`);
-
-          // Validate customerId
-          if (!customerId || isNaN(customerId) || customerId === 0) {
-            throw new Error(`Invalid customer ID calculated: ${customerId} from order ID: ${value}`);
+          
+          if (!customerId) {
+            console.log("Order details structure:", JSON.stringify(orderDetails, null, 2));
+            throw new Error("Customer ID not found in order details. Check console for data structure.");
           }
+
+          console.log(`Order ID: ${value}, Fetched Customer ID: ${customerId}, Currency: ${currencyCode}`);
 
           // Step 3: Cancel the order
           const cancelPayload = {
@@ -490,19 +496,25 @@ export default function ApiTester() {
                         orderDetails.data?.currencyCode ||
                         (orderDetails.length > 0 ? orderDetails[0]?.currencyCode : null);
       
+      // Try different possible locations for customer ID
+      let customerId = orderDetails.customerId || 
+                      orderDetails.userId || 
+                      orderDetails.customer?.id || 
+                      orderDetails.order?.customerId ||
+                      orderDetails.data?.customerId ||
+                      (orderDetails.length > 0 ? orderDetails[0]?.customerId : null);
+      
       if (!currencyCode) {
         console.log("Order details structure:", JSON.stringify(orderDetails, null, 2));
         throw new Error("Currency code not found in order details. Check console for data structure.");
       }
-
-      // Step 2: Calculate customerId from orderId
-      const customerId = calculateCustomerId(orderId);
-      console.log(`Order ID: ${orderId}, Calculated Customer ID: ${customerId}`);
-
-      // Validate customerId
-      if (!customerId || isNaN(customerId) || customerId === 0) {
-        throw new Error(`Invalid customer ID calculated: ${customerId} from order ID: ${orderId}`);
+      
+      if (!customerId) {
+        console.log("Order details structure:", JSON.stringify(orderDetails, null, 2));
+        throw new Error("Customer ID not found in order details. Check console for data structure.");
       }
+
+      console.log(`Order ID: ${orderId}, Fetched Customer ID: ${customerId}, Currency: ${currencyCode}`);
 
       // Step 3: Cancel the order
       const cancelPayload = {
