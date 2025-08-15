@@ -943,23 +943,55 @@ export default function ApiTester() {
 
           const orderDetails = getOrderData.data;
           
-          // Extract required fields from order details
-          let currencyCode = orderDetails.currencyCode || 
-                            orderDetails.currency || 
-                            orderDetails.order?.currencyCode || 
-                            orderDetails.data?.currencyCode ||
-                            (orderDetails.length > 0 ? orderDetails[0]?.currencyCode : null);
+          // The actual order data is nested inside orderDetails.data
+          const actualOrderData = orderDetails.data || orderDetails;
           
-          let customerId = orderDetails.customerId || 
-                          orderDetails.userId || 
-                          orderDetails.customer?.id || 
-                          orderDetails.order?.customerId ||
-                          orderDetails.data?.customerId ||
-                          (orderDetails.length > 0 ? orderDetails[0]?.customerId : null);
+          // Extract required fields from order details
+          let currencyCode = actualOrderData.currencyCode || 
+                            actualOrderData.currency || 
+                            orderDetails.currencyCode || 
+                            orderDetails.currency ||
+                            (Array.isArray(actualOrderData) && actualOrderData.length > 0 ? actualOrderData[0]?.currencyCode : null);
+          
+          let customerId = actualOrderData.customerId || 
+                          actualOrderData.userId || 
+                          actualOrderData.customer?.id || 
+                          orderDetails.customerId ||
+                          orderDetails.userId ||
+                          (Array.isArray(actualOrderData) && actualOrderData.length > 0 ? actualOrderData[0]?.customerId : null);
+          
+          // Extract order items with quantities
+          let orderItems = [];
+          const itemsArray = actualOrderData.items || 
+                            actualOrderData.orderItems || 
+                            actualOrderData.lineItems || 
+                            actualOrderData.products || 
+                            orderDetails.items ||
+                            orderDetails.orderItems ||
+                            [];
+          
+          if (Array.isArray(itemsArray) && itemsArray.length > 0) {
+            orderItems = itemsArray.map((item: any) => ({
+              itemId: item.itemId || item.id || item.productId || item.skuId,
+              quantity: item.quantity || item.qty || 1,
+              // Additional fields that might be required by the API
+              price: item.price || item.unitPrice || 0,
+              productName: item.productName || item.name || item.title || 'Unknown Product'
+            }));
+          } else {
+            // If no items found, try to create a generic cancel item
+            console.warn("No order items found, creating generic cancel item");
+            orderItems = [{
+              itemId: "GENERIC",
+              quantity: 1,
+              price: actualOrderData.totalAmount || actualOrderData.amount || 0,
+              productName: "Generic Order Item"
+            }];
+          }
           
           // Try to extract other potentially useful fields
-          let orderStatus = orderDetails.status || orderDetails.orderStatus;
-          let orderValue = orderDetails.value || orderDetails.totalAmount || orderDetails.amount;
+          let orderStatus = actualOrderData.status || actualOrderData.orderStatus || orderDetails.status;
+          let orderValue = actualOrderData.value || actualOrderData.totalAmount || actualOrderData.amount;
           
           // Validate required fields
           if (!currencyCode) {
@@ -973,12 +1005,21 @@ export default function ApiTester() {
           }
 
           console.log(`Fetched Order Details - ID: ${value}, Customer: ${customerId}, Currency: ${currencyCode}, Status: ${orderStatus || 'N/A'}, Value: ${orderValue || 'N/A'}`);
+          console.log(`Order Items Found:`, orderItems);
 
-          // Step 3: Cancel the order
+          // Step 2: Build cancel items array with proper structure
+          const cancelItems = orderItems.map((item: any) => ({
+            itemId: item.itemId,
+            quantity: item.quantity,
+            reason: "Ordered By Mistake",
+            reasonId: 8
+          }));
+
+          // Step 3: Cancel the order with proper cancelItems
           const cancelPayload = {
             action: "CANCEL",
             assignee: 92,
-            cancelItems: [],
+            cancelItems: cancelItems,
             cancelType: "CUSTOMER_CANCELLATION", 
             comment: "",
             createdBy: 1402,
@@ -1051,14 +1092,30 @@ export default function ApiTester() {
             const addressData = await addressRes.json();
             
             if (addressData.status === 200 && addressData.data) {
-              const customerData = addressData.data;
-              profile.fullName = customerData.fullName || customerData.name || "";
-              profile.addresses = customerData.addresses || [customerData] || [];
-              profile.phoneNumber = customerData.phoneNumber || customerData.phone || "";
-              profile.email = customerData.email || "";
-              profile.birthDate = customerData.birthDate || customerData.dateOfBirth || undefined;
+              // Handle both array and object response formats
+              const customerDataArray = Array.isArray(addressData.data) ? addressData.data : addressData.data.data || [addressData.data];
+              const customerData = customerDataArray.length > 0 ? customerDataArray[0] : {};
+              
+              // Extract basic profile info from the actual API structure
+              // Check if user is a guest and skip
+              if (customerData.guest === 1 || customerData.isGuest === true || customerData.guest === "1") {
+                throw new Error(`Customer ${value} is a guest user - skipping profile collection`);
+              }
+              
+              // Extract name properly from firstname + lastname fields (address data uses lowercase)
+              const fullName = customerData.fullName || customerData.name || `${customerData.firstname || customerData.firstName || ''} ${customerData.lastname || customerData.lastName || ''}`.trim();
+              profile.fullName = fullName || "Unknown";
+              profile.addresses = customerDataArray || [];
+              
+              // Extract phone number from various possible fields - get first valid one
+              profile.phoneNumber = customerData.phone || customerData.phoneNumber || customerData.mobile || customerData.mobileNumber || "";
+              
+              // Extract email from various possible fields - get first valid one
+              profile.email = customerData.email || customerData.emailAddress || "";
+              
+              profile.birthDate = customerData.birthDate || customerData.dateOfBirth || customerData.dob || undefined;
               profile.gender = customerData.gender || undefined;
-              profile.registerDate = customerData.registerDate || customerData.createdAt || undefined;
+              profile.registerDate = customerData.registerDate || customerData.createdAt || customerData.registrationDate || undefined;
             }
           } catch (error) {
             console.warn(`Failed to fetch address info for ${value}:`, error);
@@ -1075,11 +1132,19 @@ export default function ApiTester() {
             const ordersData = await ordersRes.json();
             
             if (ordersData.status === 200 && ordersData.data) {
-              const orders = Array.isArray(ordersData.data) ? ordersData.data : ordersData.data.orders || [];
+              // Handle different response structures
+              let orders = [];
+              if (Array.isArray(ordersData.data)) {
+                orders = ordersData.data;
+              } else if (ordersData.data.data && Array.isArray(ordersData.data.data)) {
+                orders = ordersData.data.data;
+              } else if (ordersData.data.orders && Array.isArray(ordersData.data.orders)) {
+                orders = ordersData.data.orders;
+              }
               
               const sortedOrders = orders.sort((a: any, b: any) => {
-                const dateA = new Date(a.createdAt || a.orderDate || a.date || 0).getTime();
-                const dateB = new Date(b.createdAt || b.orderDate || b.date || 0).getTime();
+                const dateA = new Date(a.createdAt || a.orderDate || a.date || a.createdTime || 0).getTime();
+                const dateB = new Date(b.createdAt || b.orderDate || b.date || b.createdTime || 0).getTime();
                 return dateB - dateA;
               });
               
@@ -1159,10 +1224,22 @@ export default function ApiTester() {
                 totalBatches: Math.ceil(totalOrders / BATCH_SIZE),
                 message: 'Bulk batching strategy successful!'
               });
-              profile.totalPurchasesAmount = orders.reduce((total: number, order: any) => {
-                const orderAmount = parseFloat(order.transactionPrice || order.totalAmount || order.amount || order.value || 0);
+              // Calculate total purchases amount from ALL orders
+              const totalAmount = orders.reduce((total: number, order: any) => {
+                const orderAmount = parseFloat(
+                  order.transactionPrice || 
+                  order.totalAmount || 
+                  order.amount || 
+                  order.value || 
+                  order.price || 
+                  order.orderTotal || 
+                  order.grandTotal || 
+                  0
+                );
                 return total + orderAmount;
               }, 0);
+              
+              profile.totalPurchasesAmount = totalAmount;
             }
           } catch (error) {
             console.warn(`Failed to fetch orders for ${value}:`, error);
