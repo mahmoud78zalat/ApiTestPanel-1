@@ -413,11 +413,54 @@ export default function ApiTester() {
             return dateB - dateA;
           });
           
-          // Map orders to include invoiceUrl and standardize structure
-          profile.latestOrders = sortedOrders.slice(0, 10).map((order: any) => ({
-            ...order,
-            invoiceUrl: order.invoiceUrl || order.invoice_url || order.invoiceLink || null
-          }));
+          // Get ALL orders, not just 10, and fetch invoice URLs from individual order details
+          profile.latestOrders = [];
+          
+          // Process all orders to get invoice URLs
+          for (const order of sortedOrders) {
+            try {
+              const orderId = order.orderId || order.id;
+              if (orderId) {
+                // Fetch individual order details to get invoice URL
+                const orderDetailsRequest: ApiRequest = {
+                  url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+                  method: "GET",
+                  token: token.trim(),
+                };
+                
+                const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
+                const orderDetailsData = await orderDetailsRes.json();
+                
+                if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
+                  const orderData = orderDetailsData.data.data;
+                  const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
+                                   orderData.receiptUrl || orderData.receipt_url || null;
+                  
+                  profile.latestOrders.push({
+                    ...order,
+                    invoiceUrl: invoiceUrl
+                  });
+                } else {
+                  // If individual fetch fails, add order without invoice URL
+                  profile.latestOrders.push({
+                    ...order,
+                    invoiceUrl: null
+                  });
+                }
+              } else {
+                profile.latestOrders.push({
+                  ...order,
+                  invoiceUrl: null
+                });
+              }
+            } catch (error) {
+              // If fetch fails, add order without invoice URL
+              profile.latestOrders.push({
+                ...order,
+                invoiceUrl: null
+              });
+            }
+          }
           
           // Calculate total purchases amount with multiple possible amount fields
           const totalAmount = orders.reduce((total: number, order: any) => {
@@ -979,11 +1022,54 @@ export default function ApiTester() {
                 return dateB - dateA;
               });
               
-              // Map orders to include invoiceUrl and standardize structure
-              profile.latestOrders = sortedOrders.slice(0, 10).map((order: any) => ({
-                ...order,
-                invoiceUrl: order.invoiceUrl || order.invoice_url || order.invoiceLink || null
-              }));
+              // Get ALL orders, not just 10, and fetch invoice URLs from individual order details
+              profile.latestOrders = [];
+              
+              // Process all orders to get invoice URLs
+              for (const order of sortedOrders) {
+                try {
+                  const orderId = order.orderId || order.id;
+                  if (orderId) {
+                    // Fetch individual order details to get invoice URL
+                    const orderDetailsRequest: ApiRequest = {
+                      url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+                      method: "GET",
+                      token: token.trim(),
+                    };
+                    
+                    const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
+                    const orderDetailsData = await orderDetailsRes.json();
+                    
+                    if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
+                      const orderData = orderDetailsData.data.data;
+                      const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
+                                       orderData.receiptUrl || orderData.receipt_url || null;
+                      
+                      profile.latestOrders.push({
+                        ...order,
+                        invoiceUrl: invoiceUrl
+                      });
+                    } else {
+                      // If individual fetch fails, add order without invoice URL
+                      profile.latestOrders.push({
+                        ...order,
+                        invoiceUrl: null
+                      });
+                    }
+                  } else {
+                    profile.latestOrders.push({
+                      ...order,
+                      invoiceUrl: null
+                    });
+                  }
+                } catch (error) {
+                  // If fetch fails, add order without invoice URL
+                  profile.latestOrders.push({
+                    ...order,
+                    invoiceUrl: null
+                  });
+                }
+              }
               profile.totalPurchasesAmount = orders.reduce((total: number, order: any) => {
                 const orderAmount = parseFloat(order.transactionPrice || order.totalAmount || order.amount || order.value || 0);
                 return total + orderAmount;
