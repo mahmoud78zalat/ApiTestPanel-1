@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { JsonViewer } from "@/components/json-viewer";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -30,6 +31,8 @@ import {
   Search,
   Layers,
   BarChart3,
+  Trash2,
+  Eye,
 } from "lucide-react";
 
 // Predefined API endpoints with dynamic parameters
@@ -82,7 +85,7 @@ const API_ENDPOINTS: ApiEndpoint[] = [
     id: "customer-orders",
     name: "Customer Orders",
     description: "Search for all orders for specific user",
-    url: "https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId={customerid}&pageNum=1&pageSize=20",
+    url: "https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId={customerid}&pageNum=1&pageSize=1000",
     method: "GET",
     parameters: [
       {
@@ -279,8 +282,8 @@ export default function ApiTester() {
         customerId,
         fullName: "",
         addresses: [],
-        phoneNumbers: [],
-        emails: [],
+        phoneNumber: "",
+        email: "",
         latestOrders: [],
         totalPurchasesAmount: 0,
         fetchedAt: new Date().toISOString(),
@@ -342,19 +345,11 @@ export default function ApiTester() {
           profile.fullName = fullName || "Unknown";
           profile.addresses = customerDataArray || [];
           
-          // Extract phone numbers from various possible fields
-          const phoneNumbers = [];
-          if (customerData.phone) phoneNumbers.push(customerData.phone);
-          if (customerData.phoneNumber) phoneNumbers.push(customerData.phoneNumber);
-          if (customerData.mobile) phoneNumbers.push(customerData.mobile);
-          if (customerData.mobileNumber) phoneNumbers.push(customerData.mobileNumber);
-          profile.phoneNumbers = [...new Set(phoneNumbers)]; // Remove duplicates
+          // Extract phone number from various possible fields - get first valid one
+          profile.phoneNumber = customerData.phone || customerData.phoneNumber || customerData.mobile || customerData.mobileNumber || "";
           
-          // Extract emails from various possible fields
-          const emails = [];
-          if (customerData.email) emails.push(customerData.email);
-          if (customerData.emailAddress) emails.push(customerData.emailAddress);
-          profile.emails = [...new Set(emails)]; // Remove duplicates
+          // Extract email from various possible fields - get first valid one
+          profile.email = customerData.email || customerData.emailAddress || "";
           
           profile.birthDate = customerData.birthDate || customerData.dateOfBirth || customerData.dob || undefined;
           profile.gender = customerData.gender || undefined;
@@ -367,7 +362,7 @@ export default function ApiTester() {
       // Step 2: Fetch customer orders
       try {
         const ordersRequest: ApiRequest = {
-          url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=100`,
+          url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=1000`,
           method: "GET",
           token: token.trim(),
         };
@@ -545,15 +540,8 @@ export default function ApiTester() {
               });
               
               if (orderEmail && orderEmail.includes('@')) {
-                // Clear any existing emails from profile fetch as order email is more reliable
-                if (profile.emails) {
-                  const existingEmails = profile.emails.filter(email => email === orderEmail);
-                  if (existingEmails.length === 0) {
-                    profile.emails.push(orderEmail);
-                  }
-                } else {
-                  profile.emails = [orderEmail];
-                }
+                // Set the email from order as it's the most reliable source
+                profile.email = orderEmail;
                 
                 addDebugLog('info', 'Email Extracted from Order', {
                   orderId: orderId,
@@ -571,7 +559,7 @@ export default function ApiTester() {
         }
         
         // If no email found from orders, keep any email that might have been found from profile
-        if (!emailFound && (!profile.emails || profile.emails.length === 0)) {
+        if (!emailFound && (!profile.email || profile.email === "")) {
           addDebugLog('info', 'No Email Found', {
             message: 'Could not extract email from any of the customer orders',
             ordersChecked: ordersToCheck.length
@@ -580,10 +568,10 @@ export default function ApiTester() {
       }
 
       // Step 4: Try to fetch additional profile data from search endpoint if we have email/phone
-      if (profile.emails && profile.emails.length > 0) {
+      if (profile.email && profile.email !== "") {
         try {
           const searchRequest: ApiRequest = {
-            url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=${profile.emails[0]}&customerId=`,
+            url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=${profile.email}&customerId=`,
             method: "GET",
             token: token.trim(),
           };
@@ -618,8 +606,8 @@ export default function ApiTester() {
         fullName: profile.fullName || "Unknown",
         addresses: profile.addresses || [],
         birthDate: profile.birthDate,
-        phoneNumbers: profile.phoneNumbers || [],
-        emails: profile.emails || [],
+        phoneNumber: profile.phoneNumber || "",
+        email: profile.email || "",
         latestOrders: profile.latestOrders || [],
         gender: profile.gender,
         registerDate: profile.registerDate,
@@ -661,7 +649,7 @@ export default function ApiTester() {
       
       toast({
         title: "Profile fetched successfully!",
-        description: `${completeProfile.fullName} (${customerId}) - ${completeProfile.latestOrders.length} orders, $${completeProfile.totalPurchasesAmount.toFixed(2)} total, Last: ${(completeProfile as any).lastOrderTime ? new Date((completeProfile as any).lastOrderTime).toLocaleDateString() : 'N/A'}`,
+        description: `${completeProfile.fullName} (${customerId}) - ${completeProfile.latestOrders.length} orders, $${completeProfile.totalPurchasesAmount.toFixed(2)} total`,
       });
       
     } catch (error: any) {
@@ -937,8 +925,8 @@ export default function ApiTester() {
             customerId: value,
             fullName: "",
             addresses: [],
-            phoneNumbers: [],
-            emails: [],
+            phoneNumber: "",
+            email: "",
             latestOrders: [],
             totalPurchasesAmount: 0,
             fetchedAt: new Date().toISOString(),
@@ -958,8 +946,8 @@ export default function ApiTester() {
               const customerData = addressData.data;
               profile.fullName = customerData.fullName || customerData.name || "";
               profile.addresses = customerData.addresses || [customerData] || [];
-              profile.phoneNumbers = customerData.phoneNumbers || (customerData.phone ? [customerData.phone] : []) || [];
-              profile.emails = customerData.emails || (customerData.email ? [customerData.email] : []) || [];
+              profile.phoneNumber = customerData.phoneNumber || customerData.phone || "";
+              profile.email = customerData.email || "";
               profile.birthDate = customerData.birthDate || customerData.dateOfBirth || undefined;
               profile.gender = customerData.gender || undefined;
               profile.registerDate = customerData.registerDate || customerData.createdAt || undefined;
@@ -971,7 +959,7 @@ export default function ApiTester() {
           // Fetch customer orders
           try {
             const ordersRequest: ApiRequest = {
-              url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${value}&pageNum=1&pageSize=20`,
+              url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${value}&pageNum=1&pageSize=1000`,
               method: "GET",
               token: token.trim(),
             };
@@ -1003,8 +991,8 @@ export default function ApiTester() {
             fullName: profile.fullName || "Unknown",
             addresses: profile.addresses || [],
             birthDate: profile.birthDate,
-            phoneNumbers: profile.phoneNumbers || [],
-            emails: profile.emails || [],
+            phoneNumber: profile.phoneNumber || "",
+            email: profile.email || "",
             latestOrders: profile.latestOrders || [],
             gender: profile.gender,
             registerDate: profile.registerDate,
@@ -1947,53 +1935,179 @@ export default function ApiTester() {
                       <Database className="w-5 h-5 text-blue-600" />
                       Collected Customer Profiles
                     </h3>
-                    <Badge className="bg-blue-100 text-blue-800">
-                      {collectedProfiles.length} profiles
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-blue-100 text-blue-800">
+                        {collectedProfiles.length} profiles
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setCollectedProfiles([]);
+                          toast({
+                            title: "Profiles Cleared",
+                            description: "All collected customer profiles have been reset",
+                          });
+                        }}
+                        className="flex items-center gap-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Reset
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-sm text-slate-600 mt-2">
                     Persistent collection of customer profiles fetched using "Fetch Full Profile" action
                   </p>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                    {collectedProfiles.map((profile, index) => (
-                      <div
-                        key={profile.customerId}
-                        className="border border-slate-200 rounded-lg p-4 bg-slate-50"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-medium">#{index + 1}</span>
-                            <span className="font-semibold text-slate-900">
-                              {profile.fullName || 'Unknown'}
-                            </span>
-                            <span className="text-sm text-slate-500">
-                              (ID: {profile.customerId})
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-400">
-                            {new Date(profile.fetchedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-slate-600">Emails:</span>
-                            <span className="ml-1 font-medium">{profile.emails.length}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-600">Orders:</span>
-                            <span className="ml-1 font-medium">{profile.latestOrders.length}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-600">Total Spent:</span>
-                            <span className="ml-1 font-medium text-green-600">
-                              ${profile.totalPurchasesAmount.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {collectedProfiles.map((profile, index) => {
+                      const latestOrderDate = profile.latestOrders.length > 0 ? 
+                        new Date(profile.latestOrders[0].createDate || profile.latestOrders[0].date || profile.latestOrders[0].orderDate).toLocaleDateString() : 
+                        'N/A';
+                      
+                      return (
+                        <Dialog key={profile.customerId}>
+                          <DialogTrigger asChild>
+                            <div
+                              className="border border-slate-200 rounded-lg p-4 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm font-medium">#{index + 1}</span>
+                                  <span className="font-semibold text-slate-900">
+                                    {profile.fullName || 'Unknown'}
+                                  </span>
+                                  <span className="text-sm text-slate-500">
+                                    (ID: {profile.customerId})
+                                  </span>
+                                  <Eye className="w-4 h-4 text-slate-400" />
+                                </div>
+                                <span className="text-xs text-slate-400">
+                                  {new Date(profile.fetchedAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                <div>
+                                  <span className="text-slate-600">Email:</span>
+                                  <span className="ml-1 font-medium">{profile.email ? 'Yes' : 'No'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-600">Orders:</span>
+                                  <span className="ml-1 font-medium">{profile.latestOrders.length}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-600">Total Spent:</span>
+                                  <span className="ml-1 font-medium text-green-600">
+                                    ${profile.totalPurchasesAmount.toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle className="flex items-center gap-2">
+                                <Database className="w-5 h-5 text-blue-600" />
+                                Customer Profile Details
+                              </DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-6 mt-4">
+                              {/* Basic Info */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Full Name</Label>
+                                  <p className="text-base font-semibold">{profile.fullName || 'Unknown'}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Customer ID</Label>
+                                  <p className="text-base font-mono">{profile.customerId}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Email</Label>
+                                  <p className="text-base">{profile.email || 'Not available'}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Phone</Label>
+                                  <p className="text-base">{profile.phoneNumber || 'Not available'}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Total Orders</Label>
+                                  <p className="text-base font-semibold">{profile.latestOrders.length}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Total Spent</Label>
+                                  <p className="text-base font-semibold text-green-600">${profile.totalPurchasesAmount.toFixed(2)}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Latest Order Date</Label>
+                                  <p className="text-base">{latestOrderDate}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Data Fetched</Label>
+                                  <p className="text-base">{new Date(profile.fetchedAt).toLocaleString()}</p>
+                                </div>
+                              </div>
+
+                              {/* Addresses */}
+                              <div>
+                                <Label className="text-sm font-medium text-slate-600 mb-2 block">Addresses</Label>
+                                <div className="space-y-2">
+                                  {profile.addresses && profile.addresses.length > 0 ? (
+                                    profile.addresses.map((address: any, idx: number) => (
+                                      <div key={idx} className="p-3 bg-slate-50 rounded border text-sm">
+                                        <p className="font-medium">
+                                          {address.firstname || ''} {address.lastname || address.fullName || ''}
+                                        </p>
+                                        <p>{address.addressLine1 || address.address || 'No address available'}</p>
+                                        <p>{address.area && address.city ? `${address.area}, ${address.city}` : address.area || address.city || ''}</p>
+                                        <p>{address.country || ''}</p>
+                                        {address.phone && <p className="text-slate-600">Phone: {address.phone}</p>}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-slate-500">No addresses available</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Latest Orders */}
+                              <div>
+                                <Label className="text-sm font-medium text-slate-600 mb-2 block">Latest Orders (Top 5)</Label>
+                                <div className="space-y-2">
+                                  {profile.latestOrders && profile.latestOrders.length > 0 ? (
+                                    profile.latestOrders.slice(0, 5).map((order: any, idx: number) => (
+                                      <div key={idx} className="p-3 bg-slate-50 rounded border text-sm">
+                                        <div className="flex justify-between items-start">
+                                          <div>
+                                            <p className="font-mono font-medium">{order.orderId || order.id}</p>
+                                            <p className="text-slate-600">
+                                              {order.createDate ? new Date(order.createDate).toLocaleDateString() : 
+                                               order.date ? new Date(order.date).toLocaleDateString() : 'Date N/A'}
+                                            </p>
+                                          </div>
+                                          <div className="text-right">
+                                            <p className="font-semibold text-green-600">
+                                              {order.transactionAmount || order.amount || order.totalAmount || 'N/A'}
+                                            </p>
+                                            <p className="text-xs text-slate-500">
+                                              {order.shipStatus || order.status || 'Unknown Status'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-slate-500">No orders available</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      );
+                    })}
                   </div>
                   <div className="mt-4 pt-4 border-t border-slate-200">
                     <div className="flex items-center justify-between text-sm text-slate-600">
