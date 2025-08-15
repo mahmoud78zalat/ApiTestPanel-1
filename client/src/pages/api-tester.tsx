@@ -312,29 +312,46 @@ export default function ApiTester() {
         }, addressRequest.url);
         
         if (addressData.status === 200 && addressData.data) {
-          const customerData = addressData.data;
+          // Handle both array and object response formats
+          const customerDataArray = Array.isArray(addressData.data) ? addressData.data : addressData.data.data || [addressData.data];
+          const customerData = customerDataArray.length > 0 ? customerDataArray[0] : {};
           
           addDebugLog('info', 'Extracting Customer Profile Data', {
-            originalCustomerData: customerData,
+            originalResponse: addressData,
+            customerDataArray: customerDataArray,
+            selectedCustomerData: customerData,
             extractedFields: {
-              fullName: customerData.fullName || customerData.name || (customerData.firstName + " " + customerData.lastName),
-              addresses: customerData.addresses || [customerData],
-              phone: customerData.phone,
-              email: customerData.email,
-              birthDate: customerData.birthDate || customerData.dateOfBirth,
+              fullName: customerData.fullName || customerData.name || `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim(),
+              addresses: customerDataArray,
+              phone: customerData.phone || customerData.phoneNumber || customerData.mobile,
+              email: customerData.email || customerData.emailAddress,
+              birthDate: customerData.birthDate || customerData.dateOfBirth || customerData.dob,
               gender: customerData.gender,
-              registerDate: customerData.registerDate || customerData.createdAt
+              registerDate: customerData.registerDate || customerData.createdAt || customerData.registrationDate
             }
           });
           
-          // Extract basic profile info
-          profile.fullName = customerData.fullName || customerData.name || (customerData.firstName + " " + customerData.lastName) || "";
-          profile.addresses = customerData.addresses || [customerData] || [];
-          profile.phoneNumbers = customerData.phoneNumbers || (customerData.phone ? [customerData.phone] : []) || [];
-          profile.emails = customerData.emails || (customerData.email ? [customerData.email] : []) || [];
-          profile.birthDate = customerData.birthDate || customerData.dateOfBirth || undefined;
+          // Extract basic profile info from the actual API structure
+          profile.fullName = customerData.fullName || customerData.name || `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim() || "Unknown";
+          profile.addresses = customerDataArray || [];
+          
+          // Extract phone numbers from various possible fields
+          const phoneNumbers = [];
+          if (customerData.phone) phoneNumbers.push(customerData.phone);
+          if (customerData.phoneNumber) phoneNumbers.push(customerData.phoneNumber);
+          if (customerData.mobile) phoneNumbers.push(customerData.mobile);
+          if (customerData.mobileNumber) phoneNumbers.push(customerData.mobileNumber);
+          profile.phoneNumbers = [...new Set(phoneNumbers)]; // Remove duplicates
+          
+          // Extract emails from various possible fields
+          const emails = [];
+          if (customerData.email) emails.push(customerData.email);
+          if (customerData.emailAddress) emails.push(customerData.emailAddress);
+          profile.emails = [...new Set(emails)]; // Remove duplicates
+          
+          profile.birthDate = customerData.birthDate || customerData.dateOfBirth || customerData.dob || undefined;
           profile.gender = customerData.gender || undefined;
-          profile.registerDate = customerData.registerDate || customerData.createdAt || undefined;
+          profile.registerDate = customerData.registerDate || customerData.createdAt || customerData.registrationDate || undefined;
         }
       } catch (error) {
         console.warn("Failed to fetch address info:", error);
@@ -369,9 +386,19 @@ export default function ApiTester() {
         }, ordersRequest.url);
         
         if (ordersData.status === 200 && ordersData.data) {
-          const orders = Array.isArray(ordersData.data) ? ordersData.data : ordersData.data.orders || [];
+          // Handle different response structures
+          let orders = [];
+          if (Array.isArray(ordersData.data)) {
+            orders = ordersData.data;
+          } else if (ordersData.data.data && Array.isArray(ordersData.data.data)) {
+            orders = ordersData.data.data;
+          } else if (ordersData.data.orders && Array.isArray(ordersData.data.orders)) {
+            orders = ordersData.data.orders;
+          }
           
           addDebugLog('info', 'Processing Orders Data', {
+            originalOrdersResponse: ordersData,
+            extractedOrders: orders,
             totalOrdersFound: orders.length,
             firstOrderSample: orders.length > 0 ? orders[0] : null,
             orderFieldsFound: orders.length > 0 ? Object.keys(orders[0]) : []
@@ -379,16 +406,25 @@ export default function ApiTester() {
           
           // Sort by date and take latest 10
           const sortedOrders = orders.sort((a: any, b: any) => {
-            const dateA = new Date(a.createdAt || a.orderDate || a.date || 0).getTime();
-            const dateB = new Date(b.createdAt || b.orderDate || b.date || 0).getTime();
+            const dateA = new Date(a.createdAt || a.orderDate || a.date || a.createdTime || 0).getTime();
+            const dateB = new Date(b.createdAt || b.orderDate || b.date || b.createdTime || 0).getTime();
             return dateB - dateA;
           });
           
           profile.latestOrders = sortedOrders.slice(0, 10);
           
-          // Calculate total purchases amount
+          // Calculate total purchases amount with multiple possible amount fields
           const totalAmount = orders.reduce((total: number, order: any) => {
-            const orderAmount = parseFloat(order.transactionPrice || order.totalAmount || order.amount || order.value || 0);
+            const orderAmount = parseFloat(
+              order.transactionPrice || 
+              order.totalAmount || 
+              order.amount || 
+              order.value || 
+              order.price || 
+              order.orderTotal || 
+              order.grandTotal || 
+              0
+            );
             return total + orderAmount;
           }, 0);
           
@@ -399,8 +435,9 @@ export default function ApiTester() {
             latestOrdersSelected: profile.latestOrders.length,
             totalPurchasesAmount: totalAmount,
             amountCalculationBreakdown: orders.map(order => ({
-              orderId: order.id || order.orderId,
-              amount: order.transactionPrice || order.totalAmount || order.amount || order.value || 0
+              orderId: order.id || order.orderId || order.orderNumber,
+              amount: order.transactionPrice || order.totalAmount || order.amount || order.value || order.price || 0,
+              date: order.createdAt || order.orderDate || order.date || order.createdTime
             }))
           });
         }
@@ -441,7 +478,7 @@ export default function ApiTester() {
         }
       }
 
-      // Add the profile to the collection
+      // Final profile assembly with debug logging
       const completeProfile: CustomerProfile = {
         customerId: profile.customerId!,
         fullName: profile.fullName || "Unknown",
@@ -455,6 +492,22 @@ export default function ApiTester() {
         totalPurchasesAmount: profile.totalPurchasesAmount || 0,
         fetchedAt: profile.fetchedAt!,
       };
+      
+      addDebugLog('info', 'Complete Profile Assembled', {
+        customerId: completeProfile.customerId,
+        profileSummary: {
+          fullName: completeProfile.fullName,
+          addressCount: completeProfile.addresses.length,
+          phoneCount: completeProfile.phoneNumbers.length,
+          emailCount: completeProfile.emails.length,
+          orderCount: completeProfile.latestOrders.length,
+          totalSpent: completeProfile.totalPurchasesAmount,
+          hasGender: !!completeProfile.gender,
+          hasBirthDate: !!completeProfile.birthDate,
+          hasRegisterDate: !!completeProfile.registerDate
+        },
+        COMPLETE_PROFILE_DATA: completeProfile
+      });
 
       setCollectedProfiles(prev => [...prev, completeProfile]);
       
@@ -473,7 +526,7 @@ export default function ApiTester() {
       
       toast({
         title: "Profile fetched successfully!",
-        description: `Customer ${customerId} profile added to collection. Total profiles: ${collectedProfiles.length + 1}`,
+        description: `${completeProfile.fullName} (${customerId}) added. Orders: ${completeProfile.latestOrders.length}, Total spent: $${completeProfile.totalPurchasesAmount.toFixed(2)}`,
       });
       
     } catch (error: any) {
