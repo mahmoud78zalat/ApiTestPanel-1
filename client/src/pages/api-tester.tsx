@@ -343,8 +343,8 @@ export default function ApiTester() {
           const getOrderRes = await apiRequest("POST", "/api/proxy", getOrderRequest);
           const getOrderData = await getOrderRes.json();
           
-          if (!getOrderData.success) {
-            throw new Error(getOrderData.error || "Failed to fetch order details");
+          if (getOrderData.status !== 200) {
+            throw new Error(`Failed to fetch order details: ${getOrderData.statusText}`);
           }
 
           const orderDetails = getOrderData.data;
@@ -455,8 +455,8 @@ export default function ApiTester() {
       const getOrderRes = await apiRequest("POST", "/api/proxy", getOrderRequest);
       const getOrderData = await getOrderRes.json();
       
-      if (!getOrderData.success) {
-        throw new Error(getOrderData.error || "Failed to fetch order details");
+      if (getOrderData.status !== 200) {
+        throw new Error(`Failed to fetch order details: ${getOrderData.statusText}`);
       }
 
       const orderDetails = getOrderData.data;
