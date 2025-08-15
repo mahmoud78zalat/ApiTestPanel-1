@@ -389,10 +389,7 @@ export default function ApiTester() {
             url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order",
             method: "POST",
             token: token.trim(),
-            body: JSON.stringify(cancelPayload),
-            headers: {
-              "Content-Type": "application/json"
-            }
+            body: JSON.stringify(cancelPayload)
           };
 
           const res = await apiRequest("POST", "/api/proxy", cancelRequest);
@@ -511,10 +508,7 @@ export default function ApiTester() {
         url: "https://api.brandsforlessuae.com/shipment/api/v1/cancel/order",
         method: "POST",
         token: token.trim(),
-        body: JSON.stringify(cancelPayload),
-        headers: {
-          "Content-Type": "application/json"
-        }
+        body: JSON.stringify(cancelPayload)
       };
 
       const cancelRes = await apiRequest("POST", "/api/proxy", cancelRequest);
