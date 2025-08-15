@@ -1665,6 +1665,84 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                 totalBatches: Math.ceil(latestOrdersForDisplay.length / BATCH_SIZE),
                 message: 'BULK MODE: Latest 5 orders processed successfully!'
               });
+
+              // BULK: Get email from order details - Same logic as single fetch
+              if (allOrdersWithUrls && allOrdersWithUrls.length > 0) {
+                let emailFound = false;
+                
+                // Try to fetch email from the first few orders to ensure we get a valid email
+                const ordersToCheck = allOrdersWithUrls.slice(0, 2); // Check up to 2 recent orders in bulk mode
+                
+                for (const order of ordersToCheck) {
+                  if (emailFound) break;
+                  
+                  try {
+                    const orderId = order.orderId || order.id;
+                    if (!orderId) continue;
+                    
+                    const orderDetailsRequest: ApiRequest = {
+                      url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+                      method: "GET",
+                      token: token.trim(),
+                    };
+                    
+                    const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
+                    const orderDetailsData = await orderDetailsRes.json();
+                    
+                    if (orderDetailsData.status === 200 && orderDetailsData.data) {
+                      // The actual order data is nested inside orderDetailsData.data.data
+                      const orderData = orderDetailsData.data.data || orderDetailsData.data;
+                      
+                      // Try multiple possible email field locations in the order data
+                      const possibleEmailFields = [
+                        'email', 'customerEmail', 'billingEmail', 'userEmail', 'shippingEmail',
+                        'contactEmail', 'orderEmail', 'clientEmail', 'buyerEmail', 'invoiceEmail'
+                      ];
+                      
+                      let orderEmail = null;
+                      
+                      // Check direct fields in the order data
+                      for (const field of possibleEmailFields) {
+                        if (orderData[field] && typeof orderData[field] === 'string' && orderData[field].includes('@')) {
+                          orderEmail = orderData[field];
+                          break;
+                        }
+                      }
+                      
+                      // If not found in direct fields, check nested objects
+                      if (!orderEmail) {
+                        const nestedObjects = ['customer', 'billing', 'shipping', 'contact', 'user', 'buyer'];
+                        for (const obj of nestedObjects) {
+                          if (orderData[obj] && typeof orderData[obj] === 'object') {
+                            for (const field of possibleEmailFields) {
+                              if (orderData[obj][field] && typeof orderData[obj][field] === 'string' && orderData[obj][field].includes('@')) {
+                                orderEmail = orderData[obj][field];
+                                break;
+                              }
+                            }
+                            if (orderEmail) break;
+                          }
+                        }
+                      }
+                      
+                      if (orderEmail && orderEmail.includes('@')) {
+                        // Set the email from order as it's the most reliable source
+                        profile.email = orderEmail;
+                        emailFound = true;
+                        console.log(`BULK: Email extracted from order ${orderId}: ${orderEmail}`);
+                      }
+                    }
+                  } catch (error) {
+                    console.warn(`BULK: Failed to fetch email from order ${order.orderId || order.id}:`, error);
+                    // Continue to next order
+                  }
+                }
+                
+                // If no email found from orders, keep any email that might have been found from profile
+                if (!emailFound && (!profile.email || profile.email === "")) {
+                  console.log('BULK: No email found from orders');
+                }
+              }
             }
           } catch (error) {
             console.warn(`Failed to fetch orders for ${actualCustomerId}:`, error);
