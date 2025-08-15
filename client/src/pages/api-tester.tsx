@@ -344,7 +344,7 @@ export default function ApiTester() {
             order.orderId || order.id || '',
             order.createDate || order.date || order.orderDate || '',
             order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0,
-            order.orderStatus || order.status || 'Unknown',
+            order.shipStatus || order.status || order.orderStatus || 'Unknown',
             order.invoiceUrl || order.invoice_url || order.invoiceLink || ''
           );
         } else {
@@ -411,7 +411,7 @@ export default function ApiTester() {
           const orderAmount = order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
           const invoiceUrl = order.invoiceUrl || order.invoice_url || order.invoiceLink || 'N/A';
           const orderDate = order.createDate || order.date || order.orderDate || 'N/A';
-          const orderStatus = order.orderStatus || order.status || 'Unknown';
+          const orderStatus = order.shipStatus || order.status || order.orderStatus || 'Unknown';
           
           return `  Order ${orderIndex + 1}:
     ID: ${order.orderId || order.id || 'N/A'}
