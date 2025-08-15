@@ -33,6 +33,7 @@ import {
   BarChart3,
   Trash2,
   Eye,
+  Download,
 } from "lucide-react";
 
 // Predefined API endpoints with dynamic parameters
@@ -275,6 +276,84 @@ export default function ApiTester() {
     if (firstOrder.currency) return firstOrder.currency === "AED" ? "AED " : firstOrder.currency + " ";
     if (firstOrder.transactionAmount && firstOrder.transactionAmount.includes("AED")) return "AED ";
     return "$"; // Fallback
+  };
+
+  // CSV Export function
+  const exportToCSV = () => {
+    if (collectedProfiles.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "Please collect some customer profiles first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Define CSV headers
+    const headers = [
+      'Customer ID',
+      'Full Name',
+      'Email',
+      'Phone Number',
+      'Gender',
+      'Birth Date',
+      'Register Date',
+      'Total Orders',
+      'Total Purchase Amount',
+      'Latest Order Date',
+      'Latest Order ID',
+      'Latest Order Amount',
+      'Address Count',
+      'Primary Address',
+      'Primary City',
+      'Primary Country',
+      'Fetched At'
+    ];
+
+    // Convert profiles to CSV rows
+    const csvRows = collectedProfiles.map(profile => {
+      const latestOrder = profile.latestOrders && profile.latestOrders.length > 0 ? profile.latestOrders[0] : null;
+      const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+      
+      return [
+        profile.customerId || '',
+        `"${profile.fullName || ''}"`,
+        profile.email || '',
+        profile.phoneNumber || '',
+        profile.gender || '',
+        profile.birthDate || '',
+        profile.registerDate || '',
+        profile.latestOrders ? profile.latestOrders.length : 0,
+        profile.totalPurchasesAmount || 0,
+        latestOrder ? (latestOrder.createDate || latestOrder.date || latestOrder.orderDate || '') : '',
+        latestOrder ? (latestOrder.orderId || latestOrder.id || '') : '',
+        latestOrder ? (latestOrder.transactionPrice || latestOrder.totalAmount || latestOrder.amount || 0) : 0,
+        profile.addresses ? profile.addresses.length : 0,
+        primaryAddress ? `"${primaryAddress.address || primaryAddress.addressLine1 || primaryAddress.street || ''}"` : '',
+        primaryAddress ? (primaryAddress.city || '') : '',
+        primaryAddress ? (primaryAddress.country || '') : '',
+        profile.fetchedAt || ''
+      ].join(',');
+    });
+
+    // Combine headers and rows
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `customer_profiles_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export successful",
+      description: `Exported ${collectedProfiles.length} customer profiles to CSV`,
+    });
   };
 
   // Helper function to fetch comprehensive customer profile
@@ -2255,6 +2334,16 @@ export default function ApiTester() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={exportToCSV}
+                        className="flex items-center gap-1"
+                        data-testid="button-export-csv"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export CSV
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => {
                           setCollectedProfiles([]);
                           toast({
@@ -2263,6 +2352,7 @@ export default function ApiTester() {
                           });
                         }}
                         className="flex items-center gap-1"
+                        data-testid="button-reset-profiles"
                       >
                         <Trash2 className="w-4 h-4" />
                         Reset
