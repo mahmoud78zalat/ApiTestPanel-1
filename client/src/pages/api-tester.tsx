@@ -215,22 +215,32 @@ export default function ApiTester() {
 
   // Helper function to calculate customerId from orderId
   const calculateCustomerId = (orderId: string): number => {
+    console.log(`[DEBUG] Original orderId: ${orderId}`);
+    
     // Remove dash and everything after it (e.g. A235841600001-1 -> A235841600001)
     let cleanOrderId = orderId.split('-')[0];
+    console.log(`[DEBUG] After removing dash: ${cleanOrderId}`);
     
     // Remove the first letter if present (e.g. A235841600001 -> 235841600001)
     cleanOrderId = cleanOrderId.replace(/^[A-Za-z]/, '');
+    console.log(`[DEBUG] After removing letter: ${cleanOrderId}`);
     
     // Remove first digit and last 5 digits
     // Example: 235841600001 -> remove first digit (2) -> 35841600001 -> remove last 5 digits -> 358416
     if (cleanOrderId.length > 6) {
       const withoutFirst = cleanOrderId.substring(1);
+      console.log(`[DEBUG] After removing first digit: ${withoutFirst}`);
       const customerId = withoutFirst.substring(0, withoutFirst.length - 5);
-      return parseInt(customerId, 10);
+      console.log(`[DEBUG] After removing last 5 digits: ${customerId}`);
+      const result = parseInt(customerId, 10);
+      console.log(`[DEBUG] Final customer ID: ${result}`);
+      return result;
     }
     
     // Fallback if orderId format is unexpected
-    return parseInt(cleanOrderId, 10) || 0;
+    const fallback = parseInt(cleanOrderId, 10) || 0;
+    console.log(`[DEBUG] Using fallback: ${fallback}`);
+    return fallback;
   };
 
   // Handle endpoint selection
