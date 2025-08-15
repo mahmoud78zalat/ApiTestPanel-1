@@ -2842,11 +2842,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                                   {new Date(profile.fetchedAt).toLocaleString()}
                                 </span>
                               </div>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                <div>
-                                  <span className="text-slate-600">Email:</span>
-                                  <span className="ml-1 font-medium">{profile.email ? 'Yes' : 'No'}</span>
-                                </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                 <div>
                                   <span className="text-slate-600">Total Orders:</span>
                                   <span className="ml-1 font-medium">{profile.totalOrdersCount || profile.latestOrders.length}</span>
