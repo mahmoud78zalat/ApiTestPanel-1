@@ -413,54 +413,66 @@ export default function ApiTester() {
             return dateB - dateA;
           });
           
-          // Get ALL orders, not just 10, and fetch invoice URLs from individual order details
-          profile.latestOrders = [];
+          // Get ALL orders with concurrent API calls for invoice URLs - MUCH FASTER!
+          addDebugLog('info', 'Starting Concurrent Invoice URL Fetching', {
+            totalOrders: sortedOrders.length,
+            message: 'Making all API requests simultaneously for better performance'
+          });
           
-          // Process all orders to get invoice URLs
-          for (const order of sortedOrders) {
+          // Create promises for all order detail requests to run concurrently
+          const orderDetailPromises = sortedOrders.map(async (order: any) => {
             try {
               const orderId = order.orderId || order.id;
-              if (orderId) {
-                // Fetch individual order details to get invoice URL
-                const orderDetailsRequest: ApiRequest = {
-                  url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
-                  method: "GET",
-                  token: token.trim(),
-                };
-                
-                const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
-                const orderDetailsData = await orderDetailsRes.json();
-                
-                if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
-                  const orderData = orderDetailsData.data.data;
-                  const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
-                                   orderData.receiptUrl || orderData.receipt_url || null;
-                  
-                  profile.latestOrders.push({
-                    ...order,
-                    invoiceUrl: invoiceUrl
-                  });
-                } else {
-                  // If individual fetch fails, add order without invoice URL
-                  profile.latestOrders.push({
-                    ...order,
-                    invoiceUrl: null
-                  });
-                }
-              } else {
-                profile.latestOrders.push({
+              if (!orderId) {
+                return {
                   ...order,
                   invoiceUrl: null
-                });
+                };
+              }
+              
+              // Create order details request
+              const orderDetailsRequest: ApiRequest = {
+                url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+                method: "GET",
+                token: token.trim(),
+              };
+              
+              // Make concurrent API call
+              const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
+              const orderDetailsData = await orderDetailsRes.json();
+              
+              if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
+                const orderData = orderDetailsData.data.data;
+                const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
+                                 orderData.receiptUrl || orderData.receipt_url || null;
+                
+                return {
+                  ...order,
+                  invoiceUrl: invoiceUrl
+                };
+              } else {
+                return {
+                  ...order,
+                  invoiceUrl: null
+                };
               }
             } catch (error) {
-              // If fetch fails, add order without invoice URL
-              profile.latestOrders.push({
+              return {
                 ...order,
                 invoiceUrl: null
-              });
+              };
             }
-          }
+          });
+          
+          // Wait for ALL requests to complete simultaneously (parallel processing)
+          const ordersWithInvoiceUrls = await Promise.all(orderDetailPromises);
+          profile.latestOrders = ordersWithInvoiceUrls;
+          
+          addDebugLog('info', 'Concurrent Invoice URL Fetching Complete', {
+            totalOrdersProcessed: ordersWithInvoiceUrls.length,
+            ordersWithInvoiceUrl: ordersWithInvoiceUrls.filter(order => order.invoiceUrl !== null).length,
+            message: 'All API requests completed simultaneously'
+          });
           
           // Calculate total purchases amount with multiple possible amount fields
           const totalAmount = orders.reduce((total: number, order: any) => {
@@ -1022,54 +1034,66 @@ export default function ApiTester() {
                 return dateB - dateA;
               });
               
-              // Get ALL orders, not just 10, and fetch invoice URLs from individual order details
-              profile.latestOrders = [];
+              // Get ALL orders with concurrent API calls for invoice URLs - MUCH FASTER!
+              addDebugLog('info', 'Starting Concurrent Invoice URL Fetching', {
+                totalOrders: sortedOrders.length,
+                message: 'Making all API requests simultaneously for better performance'
+              });
               
-              // Process all orders to get invoice URLs
-              for (const order of sortedOrders) {
+              // Create promises for all order detail requests to run concurrently
+              const orderDetailPromises = sortedOrders.map(async (order: any) => {
                 try {
                   const orderId = order.orderId || order.id;
-                  if (orderId) {
-                    // Fetch individual order details to get invoice URL
-                    const orderDetailsRequest: ApiRequest = {
-                      url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
-                      method: "GET",
-                      token: token.trim(),
-                    };
-                    
-                    const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
-                    const orderDetailsData = await orderDetailsRes.json();
-                    
-                    if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
-                      const orderData = orderDetailsData.data.data;
-                      const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
-                                       orderData.receiptUrl || orderData.receipt_url || null;
-                      
-                      profile.latestOrders.push({
-                        ...order,
-                        invoiceUrl: invoiceUrl
-                      });
-                    } else {
-                      // If individual fetch fails, add order without invoice URL
-                      profile.latestOrders.push({
-                        ...order,
-                        invoiceUrl: null
-                      });
-                    }
-                  } else {
-                    profile.latestOrders.push({
+                  if (!orderId) {
+                    return {
                       ...order,
                       invoiceUrl: null
-                    });
+                    };
+                  }
+                  
+                  // Create order details request
+                  const orderDetailsRequest: ApiRequest = {
+                    url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+                    method: "GET",
+                    token: token.trim(),
+                  };
+                  
+                  // Make concurrent API call
+                  const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
+                  const orderDetailsData = await orderDetailsRes.json();
+                  
+                  if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
+                    const orderData = orderDetailsData.data.data;
+                    const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
+                                     orderData.receiptUrl || orderData.receipt_url || null;
+                    
+                    return {
+                      ...order,
+                      invoiceUrl: invoiceUrl
+                    };
+                  } else {
+                    return {
+                      ...order,
+                      invoiceUrl: null
+                    };
                   }
                 } catch (error) {
-                  // If fetch fails, add order without invoice URL
-                  profile.latestOrders.push({
+                  return {
                     ...order,
                     invoiceUrl: null
-                  });
+                  };
                 }
-              }
+              });
+              
+              // Wait for ALL requests to complete simultaneously (parallel processing)
+              const ordersWithInvoiceUrls = await Promise.all(orderDetailPromises);
+              profile.latestOrders = ordersWithInvoiceUrls;
+              
+              addDebugLog('info', 'Concurrent Invoice URL Fetching Complete', {
+                totalOrdersProcessed: ordersWithInvoiceUrls.length,
+                ordersWithInvoiceUrl: ordersWithInvoiceUrls.filter(order => order.invoiceUrl !== null).length,
+                message: 'All API requests completed simultaneously'
+              });
               profile.totalPurchasesAmount = orders.reduce((total: number, order: any) => {
                 const orderAmount = parseFloat(order.transactionPrice || order.totalAmount || order.amount || order.value || 0);
                 return total + orderAmount;
