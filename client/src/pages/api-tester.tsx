@@ -972,19 +972,22 @@ export default function ApiTester() {
           
           if (Array.isArray(itemsArray) && itemsArray.length > 0) {
             orderItems = itemsArray.map((item: any) => ({
-              itemId: item.itemId || item.id || item.productId || item.skuId,
+              productId: item.productId || item.itemId || item.id || item.skuId,
               quantity: item.quantity || item.qty || 1,
-              // Additional fields that might be required by the API
-              price: item.price || item.unitPrice || 0,
+              stockId: item.stockId || item.stock_id || item.inventoryId,
+              transactionPrice: parseFloat(item.transactionPrice || item.price || item.unitPrice || 0),
+              oldPrice: parseFloat(item.oldPrice || 0),
               productName: item.productName || item.name || item.title || 'Unknown Product'
             }));
           } else {
             // If no items found, try to create a generic cancel item
             console.warn("No order items found, creating generic cancel item");
             orderItems = [{
-              itemId: "GENERIC",
+              productId: "GENERIC",
               quantity: 1,
-              price: actualOrderData.totalAmount || actualOrderData.amount || 0,
+              stockId: null,
+              transactionPrice: parseFloat(actualOrderData.totalAmount || actualOrderData.amount || 0),
+              oldPrice: 0,
               productName: "Generic Order Item"
             }];
           }
@@ -1009,10 +1012,11 @@ export default function ApiTester() {
 
           // Step 2: Build cancel items array with proper structure
           const cancelItems = orderItems.map((item: any) => ({
-            itemId: item.itemId,
+            productId: item.productId,
             quantity: item.quantity,
-            reason: "Ordered By Mistake",
-            reasonId: 8
+            stockId: item.stockId,
+            transactionPrice: item.transactionPrice,
+            oldPrice: item.oldPrice
           }));
 
           // Step 3: Cancel the order with proper cancelItems
@@ -1022,7 +1026,7 @@ export default function ApiTester() {
             cancelItems: cancelItems,
             cancelType: "CUSTOMER_CANCELLATION", 
             comment: "",
-            createdBy: 1402,
+            createdBy: 1405,
             currencyCode: currencyCode,
             customerId: customerId,
             orderId: value,
@@ -1383,19 +1387,22 @@ export default function ApiTester() {
       
       if (Array.isArray(itemsArray) && itemsArray.length > 0) {
         orderItems = itemsArray.map((item: any) => ({
-          itemId: item.itemId || item.id || item.productId || item.skuId,
+          productId: item.productId || item.itemId || item.id || item.skuId,
           quantity: item.quantity || item.qty || 1,
-          // Additional fields that might be required by the API
-          price: item.price || item.unitPrice || 0,
+          stockId: item.stockId || item.stock_id || item.inventoryId,
+          transactionPrice: parseFloat(item.transactionPrice || item.price || item.unitPrice || 0),
+          oldPrice: parseFloat(item.oldPrice || 0),
           productName: item.productName || item.name || item.title || 'Unknown Product'
         }));
       } else {
         // If no items found, try to create a generic cancel item
         console.warn("No order items found, creating generic cancel item");
         orderItems = [{
-          itemId: "GENERIC",
+          productId: "GENERIC",
           quantity: 1,
-          price: actualOrderData.totalAmount || actualOrderData.amount || 0,
+          stockId: null,
+          transactionPrice: parseFloat(actualOrderData.totalAmount || actualOrderData.amount || 0),
+          oldPrice: 0,
           productName: "Generic Order Item"
         }];
       }
@@ -1420,10 +1427,11 @@ export default function ApiTester() {
 
       // Step 2: Build cancel items array with proper structure
       const cancelItems = orderItems.map((item: any) => ({
-        itemId: item.itemId,
+        productId: item.productId,
         quantity: item.quantity,
-        reason: "Ordered By Mistake",
-        reasonId: 8
+        stockId: item.stockId,
+        transactionPrice: item.transactionPrice,
+        oldPrice: item.oldPrice
       }));
 
       // Step 3: Cancel the order with proper cancelItems
@@ -1433,7 +1441,7 @@ export default function ApiTester() {
         cancelItems: cancelItems,
         cancelType: "CUSTOMER_CANCELLATION", 
         comment: "",
-        createdBy: 1402,
+        createdBy: 1405,
         currencyCode: currencyCode,
         customerId: customerId,
         orderId: orderId,
