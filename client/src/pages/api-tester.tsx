@@ -418,29 +418,51 @@ export default function ApiTester() {
             orderFieldsFound: orders.length > 0 ? Object.keys(orders[0]) : []
           });
           
-          // Sort by date and take latest 10
+          // Sort by date and take latest orders
           const sortedOrders = orders.sort((a: any, b: any) => {
             const dateA = new Date(a.createdAt || a.orderDate || a.date || a.createdTime || 0).getTime();
             const dateB = new Date(b.createdAt || b.orderDate || b.date || b.createdTime || 0).getTime();
             return dateB - dateA;
           });
           
-          // Smart batching strategy for optimal performance
-          const BATCH_SIZE = 10; // Process in batches to avoid overwhelming the server
-          const totalOrders = sortedOrders.length;
+          // Calculate total purchases amount from ALL orders (not just latest 5)
+          const totalAmount = orders.reduce((total: number, order: any) => {
+            const orderAmount = parseFloat(
+              order.transactionPrice || 
+              order.totalAmount || 
+              order.amount || 
+              order.value || 
+              order.price || 
+              order.orderTotal || 
+              order.grandTotal || 
+              0
+            );
+            return total + orderAmount;
+          }, 0);
           
-          addDebugLog('info', 'Starting Smart Batched Invoice URL Fetching', {
-            totalOrders: totalOrders,
+          profile.totalPurchasesAmount = totalAmount;
+          
+          // Take only latest 5 orders for display (performance optimization)
+          const latestOrdersForDisplay = sortedOrders.slice(0, 5);
+          
+          // Smart batching strategy for optimal performance - only process latest 5
+          const BATCH_SIZE = 5; // Smaller batch since we're only processing 5 orders
+          const totalOrdersToProcess = latestOrdersForDisplay.length;
+          
+          addDebugLog('info', 'Starting Smart Batched Invoice URL Fetching (Latest 5 Orders)', {
+            totalOrdersInDB: sortedOrders.length,
+            totalOrdersToProcess: totalOrdersToProcess,
             batchSize: BATCH_SIZE,
-            estimatedBatches: Math.ceil(totalOrders / BATCH_SIZE),
-            message: 'Using intelligent batching for optimal speed and reliability'
+            estimatedBatches: Math.ceil(totalOrdersToProcess / BATCH_SIZE),
+            totalAmountFromAllOrders: totalAmount,
+            message: 'Processing only latest 5 orders for display while calculating total from all orders'
           });
           
-          let allOrdersWithUrls: any[] = [];
+          let latestOrdersWithUrls: any[] = [];
           
-          // Process orders in optimized batches
-          for (let i = 0; i < sortedOrders.length; i += BATCH_SIZE) {
-            const batch = sortedOrders.slice(i, i + BATCH_SIZE);
+          // Process latest 5 orders in optimized batches
+          for (let i = 0; i < latestOrdersForDisplay.length; i += BATCH_SIZE) {
+            const batch = latestOrdersForDisplay.slice(i, i + BATCH_SIZE);
             
             // Process current batch concurrently
             const batchPromises = batch.map(async (order: any) => {
@@ -489,43 +511,28 @@ export default function ApiTester() {
             
             // Wait for current batch to complete
             const batchResults = await Promise.all(batchPromises);
-            allOrdersWithUrls.push(...batchResults);
+            latestOrdersWithUrls.push(...batchResults);
             
             // Log batch completion
             addDebugLog('info', 'Batch Processing Complete', {
               batchNumber: Math.floor(i / BATCH_SIZE) + 1,
               batchSize: batch.length,
-              processedSoFar: allOrdersWithUrls.length,
-              totalOrders: totalOrders
+              processedSoFar: latestOrdersWithUrls.length,
+              totalOrdersToProcess: totalOrdersToProcess
             });
           }
           
-          // Set all processed orders
-          profile.latestOrders = allOrdersWithUrls;
+          // Set only latest 5 orders for display
+          profile.latestOrders = latestOrdersWithUrls;
           
-          addDebugLog('info', 'Smart Batched Invoice URL Fetching Complete', {
-            totalOrdersProcessed: allOrdersWithUrls.length,
-            ordersWithInvoiceUrl: allOrdersWithUrls.filter(order => order.invoiceUrl !== null).length,
-            totalBatches: Math.ceil(totalOrders / BATCH_SIZE),
-            message: 'All batches completed - Smart batching strategy successful!'
+          addDebugLog('info', 'Smart Batched Invoice URL Fetching Complete (Latest 5 Orders)', {
+            totalOrdersInDatabase: sortedOrders.length,
+            latestOrdersProcessed: latestOrdersWithUrls.length,
+            ordersWithInvoiceUrl: latestOrdersWithUrls.filter(order => order.invoiceUrl !== null).length,
+            totalBatches: Math.ceil(totalOrdersToProcess / BATCH_SIZE),
+            totalAmountCalculatedFromAllOrders: totalAmount,
+            message: 'Processed only latest 5 orders for display while total amount calculated from all orders - Performance optimized!'
           });
-          
-          // Calculate total purchases amount with multiple possible amount fields
-          const totalAmount = orders.reduce((total: number, order: any) => {
-            const orderAmount = parseFloat(
-              order.transactionPrice || 
-              order.totalAmount || 
-              order.amount || 
-              order.value || 
-              order.price || 
-              order.orderTotal || 
-              order.grandTotal || 
-              0
-            );
-            return total + orderAmount;
-          }, 0);
-          
-          profile.totalPurchasesAmount = totalAmount;
           
           // Get last order time (most recent order date)
           const lastOrderTime = sortedOrders.length > 0 ? 
@@ -1270,24 +1277,55 @@ export default function ApiTester() {
       }
 
       const orderDetails = getOrderData.data;
+      // The actual order data is nested inside orderDetails.data
+      const actualOrderData = orderDetails.data || orderDetails;
       
       // Extract required fields from order details
-      let currencyCode = orderDetails.currencyCode || 
-                        orderDetails.currency || 
-                        orderDetails.order?.currencyCode || 
-                        orderDetails.data?.currencyCode ||
-                        (orderDetails.length > 0 ? orderDetails[0]?.currencyCode : null);
+      let currencyCode = actualOrderData.currencyCode || 
+                        actualOrderData.currency || 
+                        orderDetails.currencyCode || 
+                        orderDetails.currency ||
+                        (Array.isArray(actualOrderData) && actualOrderData.length > 0 ? actualOrderData[0]?.currencyCode : null);
       
-      let customerId = orderDetails.customerId || 
-                      orderDetails.userId || 
-                      orderDetails.customer?.id || 
-                      orderDetails.order?.customerId ||
-                      orderDetails.data?.customerId ||
-                      (orderDetails.length > 0 ? orderDetails[0]?.customerId : null);
+      let customerId = actualOrderData.customerId || 
+                      actualOrderData.userId || 
+                      actualOrderData.customer?.id || 
+                      orderDetails.customerId ||
+                      orderDetails.userId ||
+                      (Array.isArray(actualOrderData) && actualOrderData.length > 0 ? actualOrderData[0]?.customerId : null);
+      
+      // Extract order items with quantities
+      let orderItems = [];
+      const itemsArray = actualOrderData.items || 
+                        actualOrderData.orderItems || 
+                        actualOrderData.lineItems || 
+                        actualOrderData.products || 
+                        orderDetails.items ||
+                        orderDetails.orderItems ||
+                        [];
+      
+      if (Array.isArray(itemsArray) && itemsArray.length > 0) {
+        orderItems = itemsArray.map((item: any) => ({
+          itemId: item.itemId || item.id || item.productId || item.skuId,
+          quantity: item.quantity || item.qty || 1,
+          // Additional fields that might be required by the API
+          price: item.price || item.unitPrice || 0,
+          productName: item.productName || item.name || item.title || 'Unknown Product'
+        }));
+      } else {
+        // If no items found, try to create a generic cancel item
+        console.warn("No order items found, creating generic cancel item");
+        orderItems = [{
+          itemId: "GENERIC",
+          quantity: 1,
+          price: actualOrderData.totalAmount || actualOrderData.amount || 0,
+          productName: "Generic Order Item"
+        }];
+      }
       
       // Try to extract other potentially useful fields
-      let orderStatus = orderDetails.status || orderDetails.orderStatus;
-      let orderValue = orderDetails.value || orderDetails.totalAmount || orderDetails.amount;
+      let orderStatus = actualOrderData.status || actualOrderData.orderStatus || orderDetails.status;
+      let orderValue = actualOrderData.value || actualOrderData.totalAmount || actualOrderData.amount;
       
       // Validate required fields
       if (!currencyCode) {
@@ -1301,12 +1339,21 @@ export default function ApiTester() {
       }
 
       console.log(`Fetched Order Details - ID: ${orderId}, Customer: ${customerId}, Currency: ${currencyCode}, Status: ${orderStatus || 'N/A'}, Value: ${orderValue || 'N/A'}`);
+      console.log(`Order Items Found:`, orderItems);
 
-      // Step 3: Cancel the order
+      // Step 2: Build cancel items array with proper structure
+      const cancelItems = orderItems.map((item: any) => ({
+        itemId: item.itemId,
+        quantity: item.quantity,
+        reason: "Ordered By Mistake",
+        reasonId: 8
+      }));
+
+      // Step 3: Cancel the order with proper cancelItems
       const cancelPayload = {
         action: "CANCEL",
         assignee: 92,
-        cancelItems: [],
+        cancelItems: cancelItems,
         cancelType: "CUSTOMER_CANCELLATION", 
         comment: "",
         createdBy: 1402,
@@ -2255,7 +2302,7 @@ export default function ApiTester() {
 
                               {/* Latest Orders */}
                               <div>
-                                <Label className="text-sm font-medium text-slate-600 mb-2 block">All Orders ({profile.latestOrders?.length || 0})</Label>
+                                <Label className="text-sm font-medium text-slate-600 mb-2 block">Latest Orders (Latest {profile.latestOrders?.length || 0} of all orders)</Label>
                                 <div className="space-y-2 max-h-[300px] overflow-y-auto">
                                   {profile.latestOrders && profile.latestOrders.length > 0 ? (
                                     profile.latestOrders.map((order: any, idx: number) => (
