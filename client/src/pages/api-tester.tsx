@@ -720,20 +720,25 @@ export default function ApiTester() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 font-sans performance-layer">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 shadow-sm">
+      <header className="glass border-b border-white/20 dark:border-white/10 shadow-xl backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
-                <Code className="text-white w-4 h-4" />
+            <div className="flex items-center space-x-3 slide-in">
+              <div className="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center shadow-lg">
+                <Code className="text-white w-5 h-5" />
               </div>
-              <h1 className="text-xl font-semibold text-slate-900">API Testing Panel</h1>
+              <div>
+                <h1 className="text-xl font-bold gradient-text">API Testing Panel</h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Modern API Testing Suite</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-slate-600">Environment: Production</span>
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="flex items-center space-x-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full">
+                <span className="text-sm font-medium text-green-700 dark:text-green-300">Production</span>
+                <div className="w-2 h-2 bg-green-500 rounded-full pulse-subtle"></div>
+              </div>
             </div>
           </div>
         </div>
