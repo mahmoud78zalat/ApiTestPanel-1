@@ -221,6 +221,31 @@ export default function ApiTester() {
   
   // Persistent storage for collected customer profiles
   const [collectedProfiles, setCollectedProfiles] = useState<CustomerProfile[]>([]);
+  
+  // Debug logging state
+  const [debugLogs, setDebugLogs] = useState<Array<{
+    timestamp: string;
+    type: 'request' | 'response' | 'error' | 'info';
+    title: string;
+    data: any;
+    url?: string;
+    method?: string;
+  }>>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  
+  // Debug logging helper
+  const addDebugLog = (type: 'request' | 'response' | 'error' | 'info', title: string, data: any, url?: string, method?: string) => {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      type,
+      title,
+      data,
+      url,
+      method,
+    };
+    setDebugLogs(prev => [logEntry, ...prev].slice(0, 50)); // Keep last 50 logs
+    console.log(`[API_DEBUG] ${type.toUpperCase()} - ${title}:`, data);
+  };
 
   // Helper function to construct URL from template and parameters
   const constructUrl = (templateUrl: string, params: Record<string, string>) => {
@@ -261,8 +286,15 @@ export default function ApiTester() {
           method: "GET",
           token: token.trim(),
         };
+        addDebugLog('request', 'Fetching Customer Address/Profile', addressRequest, addressRequest.url, addressRequest.method);
         const addressRes = await apiRequest("POST", "/api/proxy", addressRequest);
         const addressData = await addressRes.json();
+        addDebugLog('response', 'Customer Address/Profile Response', {
+          status: addressData.status,
+          dataStructure: typeof addressData.data,
+          dataKeys: addressData.data ? Object.keys(addressData.data) : null,
+          sampleData: addressData.data
+        }, addressRequest.url);
         
         if (addressData.status === 200 && addressData.data) {
           const customerData = addressData.data;
@@ -287,8 +319,17 @@ export default function ApiTester() {
           method: "GET",
           token: token.trim(),
         };
+        addDebugLog('request', 'Fetching Customer Orders', ordersRequest, ordersRequest.url, ordersRequest.method);
         const ordersRes = await apiRequest("POST", "/api/proxy", ordersRequest);
         const ordersData = await ordersRes.json();
+        addDebugLog('response', 'Customer Orders Response', {
+          status: ordersData.status,
+          dataStructure: typeof ordersData.data,
+          isArray: Array.isArray(ordersData.data),
+          dataLength: Array.isArray(ordersData.data) ? ordersData.data.length : 'Not array',
+          dataKeys: ordersData.data && typeof ordersData.data === 'object' ? Object.keys(ordersData.data) : null,
+          sampleOrder: Array.isArray(ordersData.data) && ordersData.data.length > 0 ? ordersData.data[0] : ordersData.data
+        }, ordersRequest.url);
         
         if (ordersData.status === 200 && ordersData.data) {
           const orders = Array.isArray(ordersData.data) ? ordersData.data : ordersData.data.orders || [];
@@ -320,8 +361,16 @@ export default function ApiTester() {
             method: "GET",
             token: token.trim(),
           };
+          addDebugLog('request', 'Fetching Additional Profile Data via Search', searchRequest, searchRequest.url, searchRequest.method);
           const searchRes = await apiRequest("POST", "/api/proxy", searchRequest);
           const searchData = await searchRes.json();
+          addDebugLog('response', 'Search Profile Response', {
+            status: searchData.status,
+            dataStructure: typeof searchData.data,
+            isArray: Array.isArray(searchData.data),
+            dataLength: Array.isArray(searchData.data) ? searchData.data.length : 'Not array',
+            sampleUser: Array.isArray(searchData.data) && searchData.data.length > 0 ? searchData.data[0] : searchData.data
+          }, searchRequest.url);
           
           if (searchData.status === 200 && searchData.data && searchData.data.length > 0) {
             const userData = searchData.data[0];
@@ -453,8 +502,33 @@ export default function ApiTester() {
 
   const proxyMutation = useMutation({
     mutationFn: async (request: ApiRequest) => {
+      // Debug log the outgoing request
+      addDebugLog('request', 'Outgoing API Request', {
+        url: request.url,
+        method: request.method,
+        headers: request.headers,
+        body: request.body ? JSON.parse(request.body) : null,
+        token: request.token ? `${request.token.substring(0, 20)}...` : 'None'
+      }, request.url, request.method);
+      
+      const startTime = Date.now();
       const res = await apiRequest("POST", "/api/proxy", request);
-      return res.json();
+      const data = await res.json();
+      const endTime = Date.now();
+      
+      // Debug log the response
+      addDebugLog('response', 'API Response Received', {
+        status: data.status,
+        statusText: data.statusText,
+        responseTime: `${endTime - startTime}ms`,
+        headers: data.headers,
+        dataStructure: typeof data.data,
+        dataKeys: data.data && typeof data.data === 'object' ? Object.keys(data.data) : null,
+        dataSize: JSON.stringify(data.data).length,
+        fullResponse: data
+      }, request.url, request.method);
+      
+      return data;
     },
     onSuccess: (data: ApiResponse) => {
       setResponse(data);
@@ -731,8 +805,14 @@ export default function ApiTester() {
             token: token.trim(),
           };
 
+          addDebugLog('request', 'Regular API Request', request, request.url, request.method);
           const res = await apiRequest("POST", "/api/proxy", request);
           const data = await res.json();
+          addDebugLog('response', 'Regular API Response', {
+            status: data.status,
+            dataStructure: typeof data.data,
+            responseSize: JSON.stringify(data.data).length
+          }, request.url);
           
           setBulkResults(prev => prev.map((result, index) => 
             index === i ? { ...result, status: 'success', response: data } : result
@@ -932,6 +1012,10 @@ export default function ApiTester() {
     setError(null);
     setBulkResults([]);
     setBulkInput("");
+  };
+  
+  const handleClearDebugLogs = () => {
+    setDebugLogs([]);
   };
 
   const handleCopyResponse = async () => {
@@ -1511,6 +1595,104 @@ export default function ApiTester() {
                 </Card>
               </div>
             )}
+
+            {/* Debug Panel */}
+            <Card className="mt-6">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <Code className="w-5 h-5 text-purple-600" />
+                    API Debug Console
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-purple-100 text-purple-800">
+                      {debugLogs.length} logs
+                    </Badge>
+                    <Button
+                      onClick={() => setShowDebugPanel(!showDebugPanel)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {showDebugPanel ? 'Hide' : 'Show'} Debug
+                    </Button>
+                    {debugLogs.length > 0 && (
+                      <Button
+                        onClick={handleClearDebugLogs}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:bg-red-50"
+                      >
+                        Clear Logs
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {!showDebugPanel && (
+                  <p className="text-sm text-slate-600 mt-2">
+                    Detailed request/response debugging for understanding API structure and building mixed endpoints
+                  </p>
+                )}
+              </CardHeader>
+              {showDebugPanel && (
+                <CardContent className="pt-0">
+                  {debugLogs.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>No debug logs yet. Execute some API requests to see detailed debugging information.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                      {debugLogs.map((log, index) => (
+                        <div
+                          key={index}
+                          className={`border rounded-lg p-4 ${
+                            log.type === 'request' ? 'border-blue-200 bg-blue-50' :
+                            log.type === 'response' ? 'border-green-200 bg-green-50' :
+                            log.type === 'error' ? 'border-red-200 bg-red-50' :
+                            'border-gray-200 bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                className={`${
+                                  log.type === 'request' ? 'bg-blue-100 text-blue-800' :
+                                  log.type === 'response' ? 'bg-green-100 text-green-800' :
+                                  log.type === 'error' ? 'bg-red-100 text-red-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                {log.type.toUpperCase()}
+                              </Badge>
+                              <span className="font-medium text-sm">{log.title}</span>
+                              {log.method && (
+                                <Badge variant="outline" className="text-xs">
+                                  {log.method}
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-xs text-slate-500">
+                              {new Date(log.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          {log.url && (
+                            <div className="mb-2">
+                              <span className="text-xs text-slate-600 font-medium">URL:</span>
+                              <code className="ml-2 text-xs bg-white px-2 py-1 rounded border font-mono break-all">
+                                {log.url}
+                              </code>
+                            </div>
+                          )}
+                          <div className="bg-white rounded border p-3">
+                            <JsonViewer data={log.data} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
 
             {/* Collected Profiles Display */}
             {collectedProfiles.length > 0 && (
