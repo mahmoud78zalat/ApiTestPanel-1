@@ -441,11 +441,11 @@ export default function ApiTester() {
           const lastOrderTime = sortedOrders.length > 0 ? 
             sortedOrders[0].createdAt || sortedOrders[0].orderDate || sortedOrders[0].date || sortedOrders[0].createdTime 
             : undefined;
-          (profile as any).lastOrderTime = lastOrderTime;
+          // Don't add lastOrderTime as it's not part of the CustomerProfile type
           
           addDebugLog('info', 'Orders Processing Complete', {
             totalOrdersProcessed: orders.length,
-            latestOrdersSelected: profile.latestOrders.length,
+            latestOrdersSelected: profile.latestOrders?.length || 0,
             totalPurchasesAmount: totalAmount,
             amountCalculationBreakdown: orders.map(order => ({
               orderId: order.id || order.orderId || order.orderNumber,
@@ -465,7 +465,7 @@ export default function ApiTester() {
         // Try to fetch email from the first few orders to ensure we get a valid email
         const ordersToCheck = profile.latestOrders.slice(0, 3); // Check up to 3 recent orders
         
-        for (const order of ordersToCheck) {
+        for (const order: any of ordersToCheck) {
           if (emailFound) break;
           
           try {
@@ -491,13 +491,61 @@ export default function ApiTester() {
             
             if (orderDetailsData.status === 200 && orderDetailsData.data) {
               const orderData = orderDetailsData.data;
-              const orderEmail = orderData.email || orderData.customerEmail || orderData.billingEmail || orderData.userEmail;
+              
+              // Try multiple possible email field locations in the order data
+              const possibleEmailFields = [
+                'email', 'customerEmail', 'billingEmail', 'userEmail', 'shippingEmail',
+                'contactEmail', 'orderEmail', 'clientEmail', 'buyerEmail', 'invoiceEmail'
+              ];
+              
+              let orderEmail = null;
+              
+              // Check direct fields
+              for (const field of possibleEmailFields) {
+                if (orderData[field] && typeof orderData[field] === 'string' && orderData[field].includes('@')) {
+                  orderEmail = orderData[field];
+                  break;
+                }
+              }
+              
+              // If not found in direct fields, check nested objects
+              if (!orderEmail) {
+                const nestedObjects = ['customer', 'billing', 'shipping', 'contact', 'user', 'buyer'];
+                for (const obj of nestedObjects) {
+                  if (orderData[obj] && typeof orderData[obj] === 'object') {
+                    for (const field of possibleEmailFields) {
+                      if (orderData[obj][field] && typeof orderData[obj][field] === 'string' && orderData[obj][field].includes('@')) {
+                        orderEmail = orderData[obj][field];
+                        break;
+                      }
+                    }
+                    if (orderEmail) break;
+                  }
+                }
+              }
+              
+              // Log the complete order data structure for debugging
+              addDebugLog('info', 'Order Data Structure Analysis', {
+                orderId: orderId,
+                allOrderDataKeys: Object.keys(orderData),
+                extractedEmail: orderEmail || 'No email found',
+                orderDataSample: {
+                  topLevelKeys: Object.keys(orderData).slice(0, 10),
+                  hasCustomerObject: !!orderData.customer,
+                  hasBillingObject: !!orderData.billing,
+                  hasShippingObject: !!orderData.shipping
+                }
+              });
               
               if (orderEmail && orderEmail.includes('@')) {
                 // Clear any existing emails from profile fetch as order email is more reliable
-                const existingEmails = profile.emails.filter(email => email === orderEmail);
-                if (existingEmails.length === 0) {
-                  profile.emails.push(orderEmail);
+                if (profile.emails) {
+                  const existingEmails = profile.emails.filter(email => email === orderEmail);
+                  if (existingEmails.length === 0) {
+                    profile.emails.push(orderEmail);
+                  }
+                } else {
+                  profile.emails = [orderEmail];
                 }
                 
                 addDebugLog('info', 'Email Extracted from Order', {
@@ -516,8 +564,8 @@ export default function ApiTester() {
         }
         
         // If no email found from orders, keep any email that might have been found from profile
-        if (!emailFound && profile.emails.length === 0) {
-          addDebugLog('warning', 'No Email Found', {
+        if (!emailFound && (!profile.emails || profile.emails.length === 0)) {
+          addDebugLog('info', 'No Email Found', {
             message: 'Could not extract email from any of the customer orders',
             ordersChecked: ordersToCheck.length
           });
