@@ -332,7 +332,14 @@ export default function ApiTester() {
           });
           
           // Extract basic profile info from the actual API structure
-          profile.fullName = customerData.fullName || customerData.name || `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim() || "Unknown";
+          // Check if user is a guest and skip
+          if (customerData.guest === 1 || customerData.isGuest === true || customerData.guest === "1") {
+            throw new Error(`Customer ${customerId} is a guest user - skipping profile collection`);
+          }
+          
+          // Extract name properly from firstname + lastname fields (address data uses lowercase)
+          const fullName = customerData.fullName || customerData.name || `${customerData.firstname || customerData.firstName || ''} ${customerData.lastname || customerData.lastName || ''}`.trim();
+          profile.fullName = fullName || "Unknown";
           profile.addresses = customerDataArray || [];
           
           // Extract phone numbers from various possible fields
@@ -360,7 +367,7 @@ export default function ApiTester() {
       // Step 2: Fetch customer orders
       try {
         const ordersRequest: ApiRequest = {
-          url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=20`,
+          url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=100`,
           method: "GET",
           token: token.trim(),
         };
@@ -430,6 +437,12 @@ export default function ApiTester() {
           
           profile.totalPurchasesAmount = totalAmount;
           
+          // Get last order time (most recent order date)
+          const lastOrderTime = sortedOrders.length > 0 ? 
+            sortedOrders[0].createdAt || sortedOrders[0].orderDate || sortedOrders[0].date || sortedOrders[0].createdTime 
+            : undefined;
+          (profile as any).lastOrderTime = lastOrderTime;
+          
           addDebugLog('info', 'Orders Processing Complete', {
             totalOrdersProcessed: orders.length,
             latestOrdersSelected: profile.latestOrders.length,
@@ -445,7 +458,44 @@ export default function ApiTester() {
         console.warn("Failed to fetch orders:", error);
       }
 
-      // Step 3: Try to fetch additional profile data from search endpoint if we have email/phone
+      // Step 3: Get email from order details if we have orders and no email yet
+      if (profile.latestOrders && profile.latestOrders.length > 0 && profile.emails.length === 0) {
+        try {
+          const firstOrderId = profile.latestOrders[0].orderId || profile.latestOrders[0].id;
+          const orderDetailsRequest: ApiRequest = {
+            url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${firstOrderId}`,
+            method: "GET",
+            token: token.trim(),
+          };
+          
+          addDebugLog('request', 'Fetching Order Details for Email', orderDetailsRequest, orderDetailsRequest.url, orderDetailsRequest.method);
+          const orderDetailsRes = await apiRequest("POST", "/api/proxy", orderDetailsRequest);
+          const orderDetailsData = await orderDetailsRes.json();
+          
+          addDebugLog('response', 'Order Details Response for Email', {
+            status: orderDetailsData.status,
+            statusText: orderDetailsData.statusText,
+            COMPLETE_ORDER_DETAILS: orderDetailsData,
+            emailFound: orderDetailsData.data?.email || orderDetailsData.data?.customerEmail || 'No email found'
+          }, orderDetailsRequest.url);
+          
+          if (orderDetailsData.status === 200 && orderDetailsData.data) {
+            const orderData = orderDetailsData.data;
+            const orderEmail = orderData.email || orderData.customerEmail || orderData.billingEmail || orderData.userEmail;
+            if (orderEmail && !profile.emails.includes(orderEmail)) {
+              profile.emails.push(orderEmail);
+              addDebugLog('info', 'Email Extracted from Order', {
+                orderId: firstOrderId,
+                emailFound: orderEmail
+              });
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch email from order details:`, error);
+        }
+      }
+
+      // Step 4: Try to fetch additional profile data from search endpoint if we have email/phone
       if (profile.emails && profile.emails.length > 0) {
         try {
           const searchRequest: ApiRequest = {
@@ -490,6 +540,7 @@ export default function ApiTester() {
         gender: profile.gender,
         registerDate: profile.registerDate,
         totalPurchasesAmount: profile.totalPurchasesAmount || 0,
+        lastOrderTime: (profile as any).lastOrderTime,
         fetchedAt: profile.fetchedAt!,
       };
       
@@ -526,7 +577,7 @@ export default function ApiTester() {
       
       toast({
         title: "Profile fetched successfully!",
-        description: `${completeProfile.fullName} (${customerId}) added. Orders: ${completeProfile.latestOrders.length}, Total spent: $${completeProfile.totalPurchasesAmount.toFixed(2)}`,
+        description: `${completeProfile.fullName} (${customerId}) - ${completeProfile.latestOrders.length} orders, $${completeProfile.totalPurchasesAmount.toFixed(2)} total, Last: ${(completeProfile as any).lastOrderTime ? new Date((completeProfile as any).lastOrderTime).toLocaleDateString() : 'N/A'}`,
       });
       
     } catch (error: any) {
