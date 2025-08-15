@@ -722,16 +722,16 @@ export default function ApiTester() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 font-sans performance-layer">
       {/* Header */}
-      <header className="glass border-b border-white/20 dark:border-white/10 shadow-xl backdrop-blur-lg">
+      <header className="bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-700 shadow-xl backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3 slide-in">
-              <div className="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
                 <Code className="text-white w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-xl font-bold gradient-text">API Testing Panel</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Modern API Testing Suite</p>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">API Testing Panel</h1>
+                <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">Modern API Testing Suite</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -749,19 +749,19 @@ export default function ApiTester() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Request Configuration Panel */}
           <div className="lg:col-span-1">
-            <Card className="modern-card glass border-0 shadow-xl fade-in">
-              <CardHeader className="gradient-bg text-white border-b border-white/20">
+            <Card className="border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-shadow duration-300 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-blue-500 to-purple-600 text-white border-b">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-white/20 rounded-lg">
+                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                     <Settings className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-white">Request Configuration</h2>
-                    <p className="text-xs text-white/70">Configure your API request</p>
+                    <h2 className="text-lg font-bold text-white drop-shadow-sm">Request Configuration</h2>
+                    <p className="text-sm text-white/90 font-medium">Configure your API request</p>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 space-y-6 bg-white/50 dark:bg-slate-900/50">
+              <CardContent className="p-6 space-y-6 bg-white dark:bg-slate-800">
                 {/* Quick Endpoint Selection */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
@@ -970,12 +970,12 @@ export default function ApiTester() {
 
           {/* Response Display Panel */}
           <div className="lg:col-span-2">
-            <Card className="modern-card glass border-0 shadow-xl slide-in">
+            <Card className="border border-slate-200 dark:border-slate-700 shadow-lg hover:shadow-xl transition-shadow duration-300 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
               {/* Response Header */}
-              <CardHeader className="gradient-bg text-white border-b border-white/20">
+              <CardHeader className="bg-gradient-to-r from-blue-500 to-purple-600 text-white border-b">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-white/20 rounded-lg">
+                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
                       {bulkMode ? (
                         <BarChart3 className="w-5 h-5 text-white" />
                       ) : (
@@ -983,10 +983,10 @@ export default function ApiTester() {
                       )}
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-white">
+                      <h2 className="text-lg font-bold text-white drop-shadow-sm">
                         {bulkMode ? 'Bulk Processing Results' : 'API Response'}
                       </h2>
-                      <p className="text-xs text-white/70">
+                      <p className="text-sm text-white/90 font-medium">
                         {bulkMode ? 'Multiple API responses' : 'API response data'}
                       </p>
                     </div>
@@ -1030,7 +1030,7 @@ export default function ApiTester() {
               </CardHeader>
 
               {/* Response Content */}
-              <CardContent className="p-6 bg-white/50 dark:bg-slate-900/50">
+              <CardContent className="p-6 bg-white dark:bg-slate-800">
                 {!response && !error && !proxyMutation.isPending && bulkResults.length === 0 && (
                   <div className="min-h-[400px] flex items-center justify-center">
                     <div className="text-center">
