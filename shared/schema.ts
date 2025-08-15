@@ -36,3 +36,20 @@ export interface ApiResponse {
   responseTime: number;
   size: number;
 }
+
+// Customer Profile schemas
+export const customerProfileSchema = z.object({
+  customerId: z.string(),
+  fullName: z.string(),
+  addresses: z.array(z.any()),
+  birthDate: z.string().optional(),
+  phoneNumbers: z.array(z.string()),
+  emails: z.array(z.string()),
+  latestOrders: z.array(z.any()),
+  gender: z.string().optional(),
+  registerDate: z.string().optional(),
+  totalPurchasesAmount: z.number(),
+  fetchedAt: z.string(),
+});
+
+export type CustomerProfile = z.infer<typeof customerProfileSchema>;

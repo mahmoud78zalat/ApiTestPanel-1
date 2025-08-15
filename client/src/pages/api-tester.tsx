@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { JsonViewer } from "@/components/json-viewer";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { ApiRequest, ApiResponse } from "@shared/schema";
+import type { ApiRequest, ApiResponse, CustomerProfile } from "@shared/schema";
 import {
   Play,
   Settings,
@@ -182,6 +182,21 @@ const API_ENDPOINTS: ApiEndpoint[] = [
         required: true
       }
     ]
+  },
+  {
+    id: "fetch-full-profile",
+    name: "Fetch Full Profile",
+    description: "Comprehensive customer data collection from multiple endpoints (profile, orders, addresses, etc.)",
+    url: "multi-endpoint",
+    method: "GET",
+    parameters: [
+      {
+        key: "customerid",
+        label: "Customer ID",
+        placeholder: "Enter customer ID (e.g., 1932179)",
+        required: true
+      }
+    ]
   }
 ];
 
@@ -203,6 +218,9 @@ export default function ApiTester() {
     response?: ApiResponse;
     error?: string;
   }>>([]);
+  
+  // Persistent storage for collected customer profiles
+  const [collectedProfiles, setCollectedProfiles] = useState<CustomerProfile[]>([]);
 
   // Helper function to construct URL from template and parameters
   const constructUrl = (templateUrl: string, params: Record<string, string>) => {
@@ -211,6 +229,158 @@ export default function ApiTester() {
       constructedUrl = constructedUrl.replace(`{${key}}`, encodeURIComponent(value));
     });
     return constructedUrl;
+  };
+
+  // Helper function to fetch comprehensive customer profile
+  const handleFetchFullProfile = async (customerId: string) => {
+    try {
+      // Check if profile already exists
+      if (collectedProfiles.some(profile => profile.customerId === customerId)) {
+        toast({
+          title: "Profile already exists",
+          description: `Customer ${customerId} profile is already in the collection`,
+        });
+        return;
+      }
+
+      const profile: Partial<CustomerProfile> = {
+        customerId,
+        fullName: "",
+        addresses: [],
+        phoneNumbers: [],
+        emails: [],
+        latestOrders: [],
+        totalPurchasesAmount: 0,
+        fetchedAt: new Date().toISOString(),
+      };
+
+      // Step 1: Fetch customer address/profile info
+      try {
+        const addressRequest: ApiRequest = {
+          url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${customerId}`,
+          method: "GET",
+          token: token.trim(),
+        };
+        const addressRes = await apiRequest("POST", "/api/proxy", addressRequest);
+        const addressData = await addressRes.json();
+        
+        if (addressData.status === 200 && addressData.data) {
+          const customerData = addressData.data;
+          
+          // Extract basic profile info
+          profile.fullName = customerData.fullName || customerData.name || customerData.firstName + " " + customerData.lastName || "";
+          profile.addresses = customerData.addresses || [customerData] || [];
+          profile.phoneNumbers = customerData.phoneNumbers || (customerData.phone ? [customerData.phone] : []) || [];
+          profile.emails = customerData.emails || (customerData.email ? [customerData.email] : []) || [];
+          profile.birthDate = customerData.birthDate || customerData.dateOfBirth || undefined;
+          profile.gender = customerData.gender || undefined;
+          profile.registerDate = customerData.registerDate || customerData.createdAt || undefined;
+        }
+      } catch (error) {
+        console.warn("Failed to fetch address info:", error);
+      }
+
+      // Step 2: Fetch customer orders
+      try {
+        const ordersRequest: ApiRequest = {
+          url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=20`,
+          method: "GET",
+          token: token.trim(),
+        };
+        const ordersRes = await apiRequest("POST", "/api/proxy", ordersRequest);
+        const ordersData = await ordersRes.json();
+        
+        if (ordersData.status === 200 && ordersData.data) {
+          const orders = Array.isArray(ordersData.data) ? ordersData.data : ordersData.data.orders || [];
+          
+          // Sort by date and take latest 10
+          const sortedOrders = orders.sort((a: any, b: any) => {
+            const dateA = new Date(a.createdAt || a.orderDate || a.date || 0).getTime();
+            const dateB = new Date(b.createdAt || b.orderDate || b.date || 0).getTime();
+            return dateB - dateA;
+          });
+          
+          profile.latestOrders = sortedOrders.slice(0, 10);
+          
+          // Calculate total purchases amount
+          profile.totalPurchasesAmount = orders.reduce((total: number, order: any) => {
+            const orderAmount = parseFloat(order.transactionPrice || order.totalAmount || order.amount || order.value || 0);
+            return total + orderAmount;
+          }, 0);
+        }
+      } catch (error) {
+        console.warn("Failed to fetch orders:", error);
+      }
+
+      // Step 3: Try to fetch additional profile data from search endpoint if we have email/phone
+      if (profile.emails && profile.emails.length > 0) {
+        try {
+          const searchRequest: ApiRequest = {
+            url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=${profile.emails[0]}&customerId=`,
+            method: "GET",
+            token: token.trim(),
+          };
+          const searchRes = await apiRequest("POST", "/api/proxy", searchRequest);
+          const searchData = await searchRes.json();
+          
+          if (searchData.status === 200 && searchData.data && searchData.data.length > 0) {
+            const userData = searchData.data[0];
+            
+            // Fill in any missing profile data
+            if (!profile.fullName) profile.fullName = userData.fullName || userData.name || "";
+            if (!profile.birthDate) profile.birthDate = userData.birthDate || userData.dateOfBirth;
+            if (!profile.gender) profile.gender = userData.gender;
+            if (!profile.registerDate) profile.registerDate = userData.registerDate || userData.createdAt;
+          }
+        } catch (error) {
+          console.warn("Failed to fetch additional profile data:", error);
+        }
+      }
+
+      // Add the profile to the collection
+      const completeProfile: CustomerProfile = {
+        customerId: profile.customerId!,
+        fullName: profile.fullName || "Unknown",
+        addresses: profile.addresses || [],
+        birthDate: profile.birthDate,
+        phoneNumbers: profile.phoneNumbers || [],
+        emails: profile.emails || [],
+        latestOrders: profile.latestOrders || [],
+        gender: profile.gender,
+        registerDate: profile.registerDate,
+        totalPurchasesAmount: profile.totalPurchasesAmount || 0,
+        fetchedAt: profile.fetchedAt!,
+      };
+
+      setCollectedProfiles(prev => [...prev, completeProfile]);
+      
+      // Set the combined response for display
+      const mockResponse: ApiResponse = {
+        status: 200,
+        statusText: "OK",
+        data: completeProfile,
+        headers: { "content-type": "application/json" },
+        responseTime: 1500,
+        size: JSON.stringify(completeProfile).length,
+      };
+      
+      setResponse(mockResponse);
+      setError(null);
+      
+      toast({
+        title: "Profile fetched successfully!",
+        description: `Customer ${customerId} profile added to collection. Total profiles: ${collectedProfiles.length + 1}`,
+      });
+      
+    } catch (error: any) {
+      setError(error.message || "Failed to fetch full profile");
+      setResponse(null);
+      toast({
+        title: "Profile fetch failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   // Helper function to calculate customerId from orderId
@@ -425,6 +595,121 @@ export default function ApiTester() {
           ));
           successCount++;
           
+        } else if (selectedEndpoint === "fetch-full-profile") {
+          // Special handling for fetch-full-profile in bulk mode
+          // Check if profile already exists
+          if (collectedProfiles.some(profile => profile.customerId === value)) {
+            console.log(`Profile for customer ${value} already exists, skipping`);
+            const skipResponse: ApiResponse = {
+              status: 200,
+              statusText: 'Already exists',
+              data: { message: 'Profile already collected' },
+              headers: { "content-type": "application/json" },
+              responseTime: 50,
+              size: 45,
+            };
+            setBulkResults(prev => prev.map((result, index) => 
+              index === i ? { ...result, status: 'success', response: skipResponse } : result
+            ));
+            successCount++;
+            continue;
+          }
+
+          const profile: Partial<CustomerProfile> = {
+            customerId: value,
+            fullName: "",
+            addresses: [],
+            phoneNumbers: [],
+            emails: [],
+            latestOrders: [],
+            totalPurchasesAmount: 0,
+            fetchedAt: new Date().toISOString(),
+          };
+
+          // Fetch customer address/profile info
+          try {
+            const addressRequest: ApiRequest = {
+              url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${value}`,
+              method: "GET",
+              token: token.trim(),
+            };
+            const addressRes = await apiRequest("POST", "/api/proxy", addressRequest);
+            const addressData = await addressRes.json();
+            
+            if (addressData.status === 200 && addressData.data) {
+              const customerData = addressData.data;
+              profile.fullName = customerData.fullName || customerData.name || "";
+              profile.addresses = customerData.addresses || [customerData] || [];
+              profile.phoneNumbers = customerData.phoneNumbers || (customerData.phone ? [customerData.phone] : []) || [];
+              profile.emails = customerData.emails || (customerData.email ? [customerData.email] : []) || [];
+              profile.birthDate = customerData.birthDate || customerData.dateOfBirth || undefined;
+              profile.gender = customerData.gender || undefined;
+              profile.registerDate = customerData.registerDate || customerData.createdAt || undefined;
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch address info for ${value}:`, error);
+          }
+
+          // Fetch customer orders
+          try {
+            const ordersRequest: ApiRequest = {
+              url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${value}&pageNum=1&pageSize=20`,
+              method: "GET",
+              token: token.trim(),
+            };
+            const ordersRes = await apiRequest("POST", "/api/proxy", ordersRequest);
+            const ordersData = await ordersRes.json();
+            
+            if (ordersData.status === 200 && ordersData.data) {
+              const orders = Array.isArray(ordersData.data) ? ordersData.data : ordersData.data.orders || [];
+              
+              const sortedOrders = orders.sort((a: any, b: any) => {
+                const dateA = new Date(a.createdAt || a.orderDate || a.date || 0).getTime();
+                const dateB = new Date(b.createdAt || b.orderDate || b.date || 0).getTime();
+                return dateB - dateA;
+              });
+              
+              profile.latestOrders = sortedOrders.slice(0, 10);
+              profile.totalPurchasesAmount = orders.reduce((total: number, order: any) => {
+                const orderAmount = parseFloat(order.transactionPrice || order.totalAmount || order.amount || order.value || 0);
+                return total + orderAmount;
+              }, 0);
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch orders for ${value}:`, error);
+          }
+
+          // Create complete profile and add to collection
+          const completeProfile: CustomerProfile = {
+            customerId: profile.customerId!,
+            fullName: profile.fullName || "Unknown",
+            addresses: profile.addresses || [],
+            birthDate: profile.birthDate,
+            phoneNumbers: profile.phoneNumbers || [],
+            emails: profile.emails || [],
+            latestOrders: profile.latestOrders || [],
+            gender: profile.gender,
+            registerDate: profile.registerDate,
+            totalPurchasesAmount: profile.totalPurchasesAmount || 0,
+            fetchedAt: profile.fetchedAt!,
+          };
+
+          setCollectedProfiles(prev => [...prev, completeProfile]);
+
+          const mockResponse: ApiResponse = {
+            status: 200,
+            statusText: "OK",
+            data: completeProfile,
+            headers: { "content-type": "application/json" },
+            responseTime: 1000,
+            size: JSON.stringify(completeProfile).length,
+          };
+          
+          setBulkResults(prev => prev.map((result, index) => 
+            index === i ? { ...result, status: 'success', response: mockResponse } : result
+          ));
+          successCount++;
+          
         } else {
           // Regular processing for other endpoints
           let requestUrl = url;
@@ -618,6 +903,15 @@ export default function ApiTester() {
           const orderId = parameters.orderid?.trim();
           if (orderId) {
             handleCancelOrder(orderId);
+            return;
+          }
+        }
+        
+        // Special handling for fetch full profile
+        if (selectedEndpoint === "fetch-full-profile") {
+          const customerId = parameters.customerid?.trim();
+          if (customerId) {
+            handleFetchFullProfile(customerId);
             return;
           }
         }
@@ -1216,6 +1510,76 @@ export default function ApiTester() {
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+            {/* Collected Profiles Display */}
+            {collectedProfiles.length > 0 && (
+              <Card className="mt-6">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                      <Database className="w-5 h-5 text-blue-600" />
+                      Collected Customer Profiles
+                    </h3>
+                    <Badge className="bg-blue-100 text-blue-800">
+                      {collectedProfiles.length} profiles
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-slate-600 mt-2">
+                    Persistent collection of customer profiles fetched using "Fetch Full Profile" action
+                  </p>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {collectedProfiles.map((profile, index) => (
+                      <div
+                        key={profile.customerId}
+                        className="border border-slate-200 rounded-lg p-4 bg-slate-50"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-medium">#{index + 1}</span>
+                            <span className="font-semibold text-slate-900">
+                              {profile.fullName || 'Unknown'}
+                            </span>
+                            <span className="text-sm text-slate-500">
+                              (ID: {profile.customerId})
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            {new Date(profile.fetchedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-slate-600">Emails:</span>
+                            <span className="ml-1 font-medium">{profile.emails.length}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-600">Orders:</span>
+                            <span className="ml-1 font-medium">{profile.latestOrders.length}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-600">Total Spent:</span>
+                            <span className="ml-1 font-medium text-green-600">
+                              ${profile.totalPurchasesAmount.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-slate-200">
+                    <div className="flex items-center justify-between text-sm text-slate-600">
+                      <span>Total collected profiles: {collectedProfiles.length}</span>
+                      <span>
+                        Total spending tracked: $
+                        {collectedProfiles.reduce((sum, p) => sum + p.totalPurchasesAmount, 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>
