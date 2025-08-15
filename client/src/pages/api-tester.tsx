@@ -413,7 +413,11 @@ export default function ApiTester() {
             return dateB - dateA;
           });
           
-          profile.latestOrders = sortedOrders.slice(0, 10);
+          // Map orders to include invoiceUrl and standardize structure
+          profile.latestOrders = sortedOrders.slice(0, 10).map((order: any) => ({
+            ...order,
+            invoiceUrl: order.invoiceUrl || order.invoice_url || order.invoiceLink || null
+          }));
           
           // Calculate total purchases amount with multiple possible amount fields
           const totalAmount = orders.reduce((total: number, order: any) => {
@@ -442,7 +446,7 @@ export default function ApiTester() {
             totalOrdersProcessed: orders.length,
             latestOrdersSelected: profile.latestOrders?.length || 0,
             totalPurchasesAmount: totalAmount,
-            amountCalculationBreakdown: orders.map(order => ({
+            amountCalculationBreakdown: orders.map((order: any) => ({
               orderId: order.id || order.orderId || order.orderNumber,
               amount: order.transactionPrice || order.totalAmount || order.amount || order.value || order.price || 0,
               date: order.createdAt || order.orderDate || order.date || order.createdTime
@@ -460,7 +464,7 @@ export default function ApiTester() {
         // Try to fetch email from the first few orders to ensure we get a valid email
         const ordersToCheck = profile.latestOrders.slice(0, 3); // Check up to 3 recent orders
         
-        for (const order: any of ordersToCheck) {
+        for (const order of ordersToCheck) {
           if (emailFound) break;
           
           try {
@@ -612,7 +616,7 @@ export default function ApiTester() {
         gender: profile.gender,
         registerDate: profile.registerDate,
         totalPurchasesAmount: profile.totalPurchasesAmount || 0,
-        lastOrderTime: (profile as any).lastOrderTime,
+        // Remove lastOrderTime as it's not in the schema
         fetchedAt: profile.fetchedAt!,
       };
       
@@ -621,8 +625,8 @@ export default function ApiTester() {
         profileSummary: {
           fullName: completeProfile.fullName,
           addressCount: completeProfile.addresses.length,
-          phoneCount: completeProfile.phoneNumbers.length,
-          emailCount: completeProfile.emails.length,
+          phoneCount: completeProfile.phoneNumber ? 1 : 0,
+          emailCount: completeProfile.email ? 1 : 0,
           orderCount: completeProfile.latestOrders.length,
           totalSpent: completeProfile.totalPurchasesAmount,
           hasGender: !!completeProfile.gender,
@@ -975,7 +979,11 @@ export default function ApiTester() {
                 return dateB - dateA;
               });
               
-              profile.latestOrders = sortedOrders.slice(0, 10);
+              // Map orders to include invoiceUrl and standardize structure
+              profile.latestOrders = sortedOrders.slice(0, 10).map((order: any) => ({
+                ...order,
+                invoiceUrl: order.invoiceUrl || order.invoice_url || order.invoiceLink || null
+              }));
               profile.totalPurchasesAmount = orders.reduce((total: number, order: any) => {
                 const orderAmount = parseFloat(order.transactionPrice || order.totalAmount || order.amount || order.value || 0);
                 return total + orderAmount;
