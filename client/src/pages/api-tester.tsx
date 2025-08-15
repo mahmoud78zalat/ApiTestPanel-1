@@ -318,7 +318,7 @@ export default function ApiTester() {
         `"${profile.fullName || ''}"`,
         profile.email || '',
         profile.phoneNumber || '',
-        profile.latestOrders ? profile.latestOrders.length : 0,
+        profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0),
         profile.totalPurchasesAmount || 0,
         latestOrder ? (latestOrder.createDate || latestOrder.date || latestOrder.orderDate || '') : '',
         latestOrder ? (latestOrder.orderId || latestOrder.id || '') : '',
@@ -372,7 +372,7 @@ Customer ID: ${profile.customerId || 'N/A'}
 Full Name: ${profile.fullName || 'N/A'}
 Email: ${profile.email || 'N/A'}
 Phone Number: ${profile.phoneNumber || 'N/A'}
-Total Orders: ${profile.latestOrders ? profile.latestOrders.length : 0}
+Total Orders: ${profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0)}
 Total Purchase Amount: ${profile.totalPurchasesAmount || 0}
 
 LATEST ORDER:
@@ -431,6 +431,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         email: "",
         latestOrders: [],
         totalPurchasesAmount: 0,
+        totalOrdersCount: 0,
         fetchedAt: new Date().toISOString(),
       };
 
@@ -574,6 +575,9 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           }, 0);
           
           profile.totalPurchasesAmount = totalAmount;
+          
+          // Store total orders count (all orders)
+          profile.totalOrdersCount = orders.length;
           
           // Take only latest 5 orders for display (performance optimization)
           const latestOrdersForDisplay = sortedOrders.slice(0, 5);
@@ -835,10 +839,31 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         }
       }
 
+      // Skip profiles with Unknown fullName or errors
+      if (!profile.fullName || profile.fullName === "Unknown" || profile.fullName.trim() === "") {
+        addDebugLog('info', 'Skipping Profile - Invalid Name', {
+          customerId: profile.customerId,
+          fullName: profile.fullName,
+          reason: 'Full name is Unknown or empty'
+        });
+        
+        const skipResponse: ApiResponse = {
+          status: 200,
+          statusText: 'Skipped - Invalid Profile',
+          data: { message: 'Profile skipped due to unknown or missing name' },
+          headers: { "content-type": "application/json" },
+          responseTime: 100,
+          size: 50,
+        };
+        
+        setResponse(skipResponse);
+        return;
+      }
+
       // Final profile assembly with debug logging
       const completeProfile: CustomerProfile = {
         customerId: profile.customerId!,
-        fullName: profile.fullName || "Unknown",
+        fullName: profile.fullName,
         addresses: profile.addresses || [],
         birthDate: profile.birthDate,
         phoneNumber: profile.phoneNumber || "",
@@ -847,7 +872,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         gender: profile.gender,
         registerDate: profile.registerDate,
         totalPurchasesAmount: profile.totalPurchasesAmount || 0,
-        // Remove lastOrderTime as it's not in the schema
+        totalOrdersCount: profile.totalOrdersCount || 0,
         fetchedAt: profile.fetchedAt!,
       };
       
@@ -858,7 +883,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           addressCount: completeProfile.addresses.length,
           phoneCount: completeProfile.phoneNumber ? 1 : 0,
           emailCount: completeProfile.email ? 1 : 0,
-          orderCount: completeProfile.latestOrders.length,
+          orderCount: completeProfile.totalOrdersCount || completeProfile.latestOrders.length,
           totalSpent: completeProfile.totalPurchasesAmount,
           hasGender: !!completeProfile.gender,
           hasBirthDate: !!completeProfile.birthDate,
@@ -1215,6 +1240,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
             email: "",
             latestOrders: [],
             totalPurchasesAmount: 0,
+            totalOrdersCount: 0,
             fetchedAt: new Date().toISOString(),
           };
 
@@ -1377,15 +1403,38 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               }, 0);
               
               profile.totalPurchasesAmount = totalAmount;
+              
+              // Store total orders count (all orders)
+              profile.totalOrdersCount = orders.length;
             }
           } catch (error) {
             console.warn(`Failed to fetch orders for ${value}:`, error);
           }
 
+          // Skip profiles with Unknown fullName or errors
+          if (!profile.fullName || profile.fullName === "Unknown" || profile.fullName.trim() === "") {
+            console.warn(`Skipping profile for customer ${value} - invalid name: ${profile.fullName}`);
+            
+            const skipResponse: ApiResponse = {
+              status: 200,
+              statusText: 'Skipped - Invalid Profile',
+              data: { message: 'Profile skipped due to unknown or missing name' },
+              headers: { "content-type": "application/json" },
+              responseTime: 100,
+              size: 50,
+            };
+            
+            setBulkResults(prev => prev.map((result, index) => 
+              index === i ? { ...result, status: 'success', response: skipResponse } : result
+            ));
+            successCount++;
+            continue;
+          }
+
           // Create complete profile and add to collection
           const completeProfile: CustomerProfile = {
             customerId: profile.customerId!,
-            fullName: profile.fullName || "Unknown",
+            fullName: profile.fullName,
             addresses: profile.addresses || [],
             birthDate: profile.birthDate,
             phoneNumber: profile.phoneNumber || "",
@@ -1394,6 +1443,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
             gender: profile.gender,
             registerDate: profile.registerDate,
             totalPurchasesAmount: profile.totalPurchasesAmount || 0,
+            totalOrdersCount: profile.totalOrdersCount || 0,
             fetchedAt: profile.fetchedAt!,
           };
 
@@ -2431,7 +2481,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                   <div className="space-y-3 max-h-[400px] overflow-y-auto">
                     {collectedProfiles.map((profile, index) => {
                       const latestOrderDate = profile.latestOrders.length > 0 ? 
-                        new Date(profile.latestOrders[0].createDate || profile.latestOrders[0].date || profile.latestOrders[0].orderDate).toLocaleDateString() : 
+                        new Date(profile.latestOrders[0].createDate || profile.latestOrders[0].date || profile.latestOrders[0].orderDate).toLocaleString() : 
                         'N/A';
                       
                       return (
@@ -2452,7 +2502,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                                   <Eye className="w-4 h-4 text-slate-400" />
                                 </div>
                                 <span className="text-xs text-slate-400">
-                                  {new Date(profile.fetchedAt).toLocaleDateString()}
+                                  {new Date(profile.fetchedAt).toLocaleString()}
                                 </span>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -2461,8 +2511,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                                   <span className="ml-1 font-medium">{profile.email ? 'Yes' : 'No'}</span>
                                 </div>
                                 <div>
-                                  <span className="text-slate-600">Orders:</span>
-                                  <span className="ml-1 font-medium">{profile.latestOrders.length}</span>
+                                  <span className="text-slate-600">Total Orders:</span>
+                                  <span className="ml-1 font-medium">{profile.totalOrdersCount || profile.latestOrders.length}</span>
                                 </div>
                                 <div>
                                   <span className="text-slate-600">Total Spent:</span>
@@ -2501,7 +2551,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                                 </div>
                                 <div>
                                   <Label className="text-sm font-medium text-slate-600">Total Orders</Label>
-                                  <p className="text-base font-semibold">{profile.latestOrders.length}</p>
+                                  <p className="text-base font-semibold">{profile.totalOrdersCount || profile.latestOrders.length}</p>
                                 </div>
                                 <div>
                                   <Label className="text-sm font-medium text-slate-600">Total Spent</Label>
@@ -2550,8 +2600,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                                           <div>
                                             <p className="font-mono font-medium">{order.orderId || order.id}</p>
                                             <p className="text-slate-600">
-                                              {order.createDate ? new Date(order.createDate).toLocaleDateString() : 
-                                               order.date ? new Date(order.date).toLocaleDateString() : 'Date N/A'}
+                                              {order.createDate ? new Date(order.createDate).toLocaleString() : 
+                                               order.date ? new Date(order.date).toLocaleString() : 'Date N/A'}
                                             </p>
                                           </div>
                                           <div className="text-right">

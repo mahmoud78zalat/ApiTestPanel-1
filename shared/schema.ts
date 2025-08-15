@@ -49,6 +49,7 @@ export const customerProfileSchema = z.object({
   gender: z.string().optional(),
   registerDate: z.string().optional(),
   totalPurchasesAmount: z.number(),
+  totalOrdersCount: z.number().optional(),
   fetchedAt: z.string(),
 });
 
