@@ -197,8 +197,8 @@ const API_ENDPOINTS: ApiEndpoint[] = [
     parameters: [
       {
         key: "customerid",
-        label: "Customer ID",
-        placeholder: "Enter customer ID (e.g., 1932179)",
+        label: "Customer ID or Order ID",
+        placeholder: "Enter customer ID (e.g., 1932179) or order ID (e.g., A1234567)",
         required: true
       }
     ]
@@ -465,9 +465,27 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
     });
   };
 
-  // Helper function to detect if input is an order ID (starts with 'A' followed by numbers)
+  // Helper function to detect if input is an order ID 
+  // Order IDs typically start with 'A' followed by numbers, or contain non-numeric patterns
   const isOrderId = (input: string): boolean => {
-    return /^A\d+$/.test(input.trim());
+    const trimmed = input.trim();
+    // Check if it starts with 'A' followed by numbers (common pattern)
+    if (/^A\d+$/.test(trimmed)) {
+      return true;
+    }
+    // Check if it contains letters and numbers (order ID pattern)
+    if (/^[A-Za-z]\d+$/.test(trimmed)) {
+      return true;
+    }
+    // If it's purely numeric and longer than 6 digits, likely a customer ID
+    if (/^\d+$/.test(trimmed) && trimmed.length <= 6) {
+      return false; // Treat as customer ID
+    }
+    // If it contains letters, probably an order ID
+    if (/[A-Za-z]/.test(trimmed)) {
+      return true;
+    }
+    return false; // Default to customer ID for purely numeric inputs
   };
 
   // Helper function that handles both customer ID and order ID inputs
@@ -496,17 +514,24 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           const actualOrderData = orderData.data.data || orderData.data;
           const customerId = actualOrderData.customerId || 
                             actualOrderData.userId || 
-                            actualOrderData.customer?.id;
+                            actualOrderData.customer_id ||
+                            actualOrderData.customer?.id ||
+                            actualOrderData.customer?.customerId;
           
           if (customerId) {
             console.log(`Extracted customer ID ${customerId} from order ${input}`);
+            toast({
+              title: "Customer ID found",
+              description: `Found customer ID ${customerId} for order ${input}, fetching full profile...`,
+            });
             // Now fetch the full profile using the extracted customer ID
             await handleFetchFullProfile(customerId.toString());
           } else {
-            throw new Error('Customer ID not found in order details');
+            console.error('Order data structure:', actualOrderData);
+            throw new Error(`Customer ID not found in order details. Available fields: ${Object.keys(actualOrderData).join(', ')}`);
           }
         } else {
-          throw new Error(`Failed to fetch order details: ${orderData.statusText}`);
+          throw new Error(`Failed to fetch order details: ${orderData.statusText || 'Unknown error'}`);
         }
       } catch (error) {
         toast({
