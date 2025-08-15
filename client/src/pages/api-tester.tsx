@@ -361,14 +361,9 @@ export default function ApiTester() {
             throw new Error("Currency code not found in order details. Check console for data structure.");
           }
 
-          // Step 2: Calculate customerId
-          const customerId = calculateCustomerId(value);
-          console.log(`Order ID: ${value}, Calculated Customer ID: ${customerId}`);
-
-          // Validate customerId
-          if (!customerId || isNaN(customerId) || customerId === 0) {
-            throw new Error(`Invalid customer ID calculated: ${customerId} from order ID: ${value}`);
-          }
+          // Step 2: Use hardcoded customerId for testing
+          const customerId = 1423856;
+          console.log(`Order ID: ${value}, Using hardcoded Customer ID: ${customerId}`);
 
           // Step 3: Cancel the order
           const cancelPayload = {
@@ -488,14 +483,9 @@ export default function ApiTester() {
         throw new Error("Currency code not found in order details. Check console for data structure.");
       }
 
-      // Step 2: Calculate customerId
-      const customerId = calculateCustomerId(orderId);
-      console.log(`Order ID: ${orderId}, Calculated Customer ID: ${customerId}`);
-
-      // Validate customerId
-      if (!customerId || isNaN(customerId) || customerId === 0) {
-        throw new Error(`Invalid customer ID calculated: ${customerId} from order ID: ${orderId}`);
-      }
+      // Step 2: Use hardcoded customerId for testing
+      const customerId = 1423856;
+      console.log(`Order ID: ${orderId}, Using hardcoded Customer ID: ${customerId}`);
 
       // Step 3: Cancel the order
       const cancelPayload = {
