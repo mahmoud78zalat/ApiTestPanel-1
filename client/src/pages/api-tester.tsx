@@ -338,7 +338,7 @@ export default function ApiTester() {
           orderData.push(
             order.orderId || order.id || '',
             order.createDate || order.date || order.orderDate || '',
-            order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0,
+            order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0,
             order.invoiceUrl || order.invoice_url || order.invoiceLink || ''
           );
         } else {
@@ -402,7 +402,7 @@ export default function ApiTester() {
       let ordersSection = '';
       if (orders.length > 0) {
         ordersSection = orders.slice(0, 5).map((order, orderIndex) => {
-          const orderAmount = order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
+          const orderAmount = order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
           const invoiceUrl = order.invoiceUrl || order.invoice_url || order.invoiceLink || 'N/A';
           const orderDate = order.createDate || order.date || order.orderDate || 'N/A';
           
@@ -455,6 +455,62 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
       title: "Export successful",
       description: `Exported ${collectedProfiles.length} customer profiles to TXT`,
     });
+  };
+
+  // Helper function to detect if input is an order ID (starts with 'A' followed by numbers)
+  const isOrderId = (input: string): boolean => {
+    return /^A\d+$/.test(input.trim());
+  };
+
+  // Helper function that handles both customer ID and order ID inputs
+  const handleFetchFullProfileWithOrderSupport = async (customerIdOrOrderId: string) => {
+    const input = customerIdOrOrderId.trim();
+    
+    // Check if input is an order ID
+    if (isOrderId(input)) {
+      toast({
+        title: "Order ID detected",
+        description: `Fetching customer details for order ${input}...`,
+      });
+      
+      try {
+        // Fetch order details to get customer ID
+        const orderRequest: ApiRequest = {
+          url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${input}`,
+          method: "GET",
+          token: token.trim(),
+        };
+        
+        const orderRes = await apiRequest("POST", "/api/proxy", orderRequest);
+        const orderData = await orderRes.json();
+        
+        if (orderData.status === 200 && orderData.data) {
+          const actualOrderData = orderData.data.data || orderData.data;
+          const customerId = actualOrderData.customerId || 
+                            actualOrderData.userId || 
+                            actualOrderData.customer?.id;
+          
+          if (customerId) {
+            console.log(`Extracted customer ID ${customerId} from order ${input}`);
+            // Now fetch the full profile using the extracted customer ID
+            await handleFetchFullProfile(customerId.toString());
+          } else {
+            throw new Error('Customer ID not found in order details');
+          }
+        } else {
+          throw new Error(`Failed to fetch order details: ${orderData.statusText}`);
+        }
+      } catch (error) {
+        toast({
+          title: "Order lookup failed",
+          description: error.message || "Could not fetch customer from order ID",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // Treat as customer ID
+      await handleFetchFullProfile(input);
+    }
   };
 
   // Helper function to fetch comprehensive customer profile
@@ -609,6 +665,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           // Calculate total purchases amount from ALL orders (not just latest 5)
           const totalAmount = orders.reduce((total: number, order: any) => {
             const orderAmount = parseFloat(
+              order.subtotal ||
+              order.subTotal ||
               order.transactionPrice || 
               order.totalAmount || 
               order.amount || 
@@ -1261,9 +1319,58 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           
         } else if (selectedEndpoint === "fetch-full-profile") {
           // Special handling for fetch-full-profile in bulk mode
-          // Check if profile already exists
-          if (collectedProfiles.some(profile => profile.customerId === value)) {
-            console.log(`Profile for customer ${value} already exists, skipping`);
+          let actualCustomerId = value;
+          
+          // Check if input is an order ID
+          if (isOrderId(value)) {
+            try {
+              // Fetch order details to get customer ID
+              const orderRequest: ApiRequest = {
+                url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${value}`,
+                method: "GET",
+                token: token.trim(),
+              };
+              
+              const orderRes = await apiRequest("POST", "/api/proxy", orderRequest);
+              const orderData = await orderRes.json();
+              
+              if (orderData.status === 200 && orderData.data) {
+                const actualOrderData = orderData.data.data || orderData.data;
+                const extractedCustomerId = actualOrderData.customerId || 
+                                          actualOrderData.userId || 
+                                          actualOrderData.customer?.id;
+                
+                if (extractedCustomerId) {
+                  actualCustomerId = extractedCustomerId.toString();
+                  console.log(`Bulk: Extracted customer ID ${actualCustomerId} from order ${value}`);
+                } else {
+                  throw new Error('Customer ID not found in order details');
+                }
+              } else {
+                throw new Error(`Failed to fetch order details: ${orderData.statusText}`);
+              }
+            } catch (error) {
+              console.warn(`Failed to extract customer ID from order ${value}:`, error);
+              const errorResponse: ApiResponse = {
+                status: 400,
+                statusText: 'Order Lookup Failed',
+                data: { message: `Could not fetch customer from order ID: ${error.message}` },
+                headers: { "content-type": "application/json" },
+                responseTime: 100,
+                size: 50,
+              };
+              
+              setBulkResults(prev => prev.map((result, index) => 
+                index === i ? { ...result, status: 'error', response: errorResponse, error: error.message } : result
+              ));
+              errorCount++;
+              continue;
+            }
+          }
+          
+          // Check if profile already exists using the actual customer ID
+          if (collectedProfiles.some(profile => profile.customerId === actualCustomerId)) {
+            console.log(`Profile for customer ${actualCustomerId} already exists, skipping`);
             const skipResponse: ApiResponse = {
               status: 200,
               statusText: 'Already exists',
@@ -1280,7 +1387,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           }
 
           const profile: Partial<CustomerProfile> = {
-            customerId: value,
+            customerId: actualCustomerId,
             fullName: "",
             addresses: [],
             phoneNumber: "",
@@ -1294,7 +1401,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           // Fetch customer address/profile info
           try {
             const addressRequest: ApiRequest = {
-              url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${value}`,
+              url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${actualCustomerId}`,
               method: "GET",
               token: token.trim(),
             };
@@ -1309,7 +1416,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               // Extract basic profile info from the actual API structure
               // Check if user is a guest and skip
               if (customerData.guest === 1 || customerData.isGuest === true || customerData.guest === "1") {
-                throw new Error(`Customer ${value} is a guest user - skipping profile collection`);
+                throw new Error(`Customer ${actualCustomerId} is a guest user - skipping profile collection`);
               }
               
               // Extract name properly from firstname + lastname fields (address data uses lowercase)
@@ -1328,13 +1435,13 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               profile.registerDate = customerData.registerDate || customerData.createdAt || customerData.registrationDate || undefined;
             }
           } catch (error) {
-            console.warn(`Failed to fetch address info for ${value}:`, error);
+            console.warn(`Failed to fetch address info for ${actualCustomerId}:`, error);
           }
 
           // Fetch customer orders
           try {
             const ordersRequest: ApiRequest = {
-              url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${value}&pageNum=1&pageSize=1000`,
+              url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${actualCustomerId}&pageNum=1&pageSize=1000`,
               method: "GET",
               token: token.trim(),
             };
@@ -1437,6 +1544,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               // Calculate total purchases amount from ALL orders
               const totalAmount = orders.reduce((total: number, order: any) => {
                 const orderAmount = parseFloat(
+                  order.subtotal ||
+                  order.subTotal ||
                   order.transactionPrice || 
                   order.totalAmount || 
                   order.amount || 
@@ -1455,12 +1564,12 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               profile.totalOrdersCount = orders.length;
             }
           } catch (error) {
-            console.warn(`Failed to fetch orders for ${value}:`, error);
+            console.warn(`Failed to fetch orders for ${actualCustomerId}:`, error);
           }
 
           // Skip profiles with Unknown fullName or errors
           if (!profile.fullName || profile.fullName === "Unknown" || profile.fullName.trim() === "") {
-            console.warn(`Skipping profile for customer ${value} - invalid name: ${profile.fullName}`);
+            console.warn(`Skipping profile for customer ${actualCustomerId} - invalid name: ${profile.fullName}`);
             
             const skipResponse: ApiResponse = {
               status: 200,
@@ -1764,9 +1873,9 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         
         // Special handling for fetch full profile
         if (selectedEndpoint === "fetch-full-profile") {
-          const customerId = parameters.customerid?.trim();
-          if (customerId) {
-            handleFetchFullProfile(customerId);
+          const customerIdOrOrderId = parameters.customerid?.trim();
+          if (customerIdOrOrderId) {
+            handleFetchFullProfileWithOrderSupport(customerIdOrOrderId);
             return;
           }
         }
