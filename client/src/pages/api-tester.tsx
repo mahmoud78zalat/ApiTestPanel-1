@@ -359,14 +359,13 @@ export default function ApiTester() {
 
           const orderDetails = getOrderData.data;
           
-          // Try different possible locations for currency code
+          // Extract required fields from order details
           let currencyCode = orderDetails.currencyCode || 
                             orderDetails.currency || 
                             orderDetails.order?.currencyCode || 
                             orderDetails.data?.currencyCode ||
                             (orderDetails.length > 0 ? orderDetails[0]?.currencyCode : null);
           
-          // Try different possible locations for customer ID
           let customerId = orderDetails.customerId || 
                           orderDetails.userId || 
                           orderDetails.customer?.id || 
@@ -374,6 +373,11 @@ export default function ApiTester() {
                           orderDetails.data?.customerId ||
                           (orderDetails.length > 0 ? orderDetails[0]?.customerId : null);
           
+          // Try to extract other potentially useful fields
+          let orderStatus = orderDetails.status || orderDetails.orderStatus;
+          let orderValue = orderDetails.value || orderDetails.totalAmount || orderDetails.amount;
+          
+          // Validate required fields
           if (!currencyCode) {
             console.log("Order details structure:", JSON.stringify(orderDetails, null, 2));
             throw new Error("Currency code not found in order details. Check console for data structure.");
@@ -384,7 +388,7 @@ export default function ApiTester() {
             throw new Error("Customer ID not found in order details. Check console for data structure.");
           }
 
-          console.log(`Order ID: ${value}, Fetched Customer ID: ${customerId}, Currency: ${currencyCode}`);
+          console.log(`Fetched Order Details - ID: ${value}, Customer: ${customerId}, Currency: ${currencyCode}, Status: ${orderStatus || 'N/A'}, Value: ${orderValue || 'N/A'}`);
 
           // Step 3: Cancel the order
           const cancelPayload = {
@@ -489,14 +493,13 @@ export default function ApiTester() {
 
       const orderDetails = getOrderData.data;
       
-      // Try different possible locations for currency code
+      // Extract required fields from order details
       let currencyCode = orderDetails.currencyCode || 
                         orderDetails.currency || 
                         orderDetails.order?.currencyCode || 
                         orderDetails.data?.currencyCode ||
                         (orderDetails.length > 0 ? orderDetails[0]?.currencyCode : null);
       
-      // Try different possible locations for customer ID
       let customerId = orderDetails.customerId || 
                       orderDetails.userId || 
                       orderDetails.customer?.id || 
@@ -504,6 +507,11 @@ export default function ApiTester() {
                       orderDetails.data?.customerId ||
                       (orderDetails.length > 0 ? orderDetails[0]?.customerId : null);
       
+      // Try to extract other potentially useful fields
+      let orderStatus = orderDetails.status || orderDetails.orderStatus;
+      let orderValue = orderDetails.value || orderDetails.totalAmount || orderDetails.amount;
+      
+      // Validate required fields
       if (!currencyCode) {
         console.log("Order details structure:", JSON.stringify(orderDetails, null, 2));
         throw new Error("Currency code not found in order details. Check console for data structure.");
@@ -514,7 +522,7 @@ export default function ApiTester() {
         throw new Error("Customer ID not found in order details. Check console for data structure.");
       }
 
-      console.log(`Order ID: ${orderId}, Fetched Customer ID: ${customerId}, Currency: ${currencyCode}`);
+      console.log(`Fetched Order Details - ID: ${orderId}, Customer: ${customerId}, Currency: ${currencyCode}, Status: ${orderStatus || 'N/A'}, Value: ${orderValue || 'N/A'}`);
 
       // Step 3: Cancel the order
       const cancelPayload = {
