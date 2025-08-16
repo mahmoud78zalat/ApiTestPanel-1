@@ -1039,7 +1039,10 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           
           // Extract name properly from firstname + lastname fields (address data uses lowercase)
           const fullName = customerData.fullName || customerData.name || `${customerData.firstname || customerData.firstName || ''} ${customerData.lastname || customerData.lastName || ''}`.trim();
-          profile.fullName = fullName || "Unknown";
+          // Only set name from address data if we actually found a valid name (don't fallback to "Unknown" yet)
+          if (fullName && fullName !== "") {
+            profile.fullName = fullName;
+          }
           profile.addresses = customerDataArray || [];
           
           // Extract phone number from various possible fields - get first valid one
@@ -1506,6 +1509,16 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         } catch (error) {
           console.warn("Failed to fetch additional profile data via fallback search:", error);
         }
+      }
+
+      // Final fallback for name if still empty after all attempts
+      if (!profile.fullName || profile.fullName.trim() === "") {
+        profile.fullName = "Unknown";
+        addDebugLog('warning', 'Name Fallback Applied', {
+          customerId: profile.customerId,
+          message: 'No name found from any source, using "Unknown" as fallback',
+          checkedSources: ['address endpoint', 'PII endpoint', 'search endpoint fallback']
+        });
       }
 
       // Enhanced debugging before skip check
@@ -2016,7 +2029,10 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               
               // Extract name properly from firstname + lastname fields (address data uses lowercase)
               const fullName = customerData.fullName || customerData.name || `${customerData.firstname || customerData.firstName || ''} ${customerData.lastname || customerData.lastName || ''}`.trim();
-              profile.fullName = fullName || "Unknown";
+              // Only set name from address data if we actually found a valid name (don't fallback to "Unknown" yet)
+              if (fullName && fullName !== "") {
+                profile.fullName = fullName;
+              }
               profile.addresses = customerDataArray || [];
               
               // Extract phone number from various possible fields - get first valid one
@@ -2300,6 +2316,11 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
             }
           } catch (error) {
             console.warn(`Failed to fetch full PII data for ${actualCustomerId}:`, error);
+          }
+
+          // Final fallback for name if still empty after all attempts
+          if (!profile.fullName || profile.fullName.trim() === "") {
+            profile.fullName = "Unknown";
           }
 
           // Skip profiles with Unknown fullName or errors
