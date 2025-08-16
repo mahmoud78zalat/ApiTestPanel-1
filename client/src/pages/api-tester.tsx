@@ -2971,7 +2971,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                             >
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-mono text-sm font-medium">#{index + 1}</span>
+                                  <span className="font-mono text-sm font-medium">#{profileIndex + 1}</span>
                                   <span className="font-semibold text-slate-900">
                                     {profile.fullName || 'Unknown'}
                                   </span>
