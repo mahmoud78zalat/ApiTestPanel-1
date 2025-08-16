@@ -1385,18 +1385,99 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         }
       }
 
-      // Step 4: Try to fetch additional profile data from search endpoint if we have email/phone
-      if (profile.email && profile.email !== "") {
+      // Step 4: Fetch full PII data including birthday, register date, and gender using customer ID
+      try {
+        const piiRequest: ApiRequest = {
+          url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId=${customerId}`,
+          method: "GET",
+          token: token.trim(),
+        };
+        addDebugLog('request', 'Fetching Customer Full PII Data', piiRequest, piiRequest.url, piiRequest.method);
+        const piiRes = await apiRequest("POST", "/api/proxy", piiRequest);
+        const piiData = await piiRes.json();
+        addDebugLog('response', 'Customer Full PII Response', {
+          status: piiData.status,
+          dataStructure: typeof piiData.data,
+          isArray: Array.isArray(piiData.data),
+          dataLength: Array.isArray(piiData.data) ? piiData.data.length : 'Not array',
+          sampleUser: Array.isArray(piiData.data) && piiData.data.length > 0 ? piiData.data[0] : piiData.data,
+          COMPLETE_PII_RESPONSE: piiData
+        }, piiRequest.url);
+        
+        if (piiData.status === 200 && piiData.data && piiData.data.length > 0) {
+          const userData = piiData.data[0];
+          
+          addDebugLog('info', 'Extracting Full PII Data', {
+            originalResponse: piiData,
+            userData: userData,
+            extractedFields: {
+              fullName: userData.fname && userData.lname ? `${userData.fname} ${userData.lname}` : userData.name,
+              email: userData.email,
+              mobile: userData.mobile,
+              gender: userData.gender,
+              birthday: userData.birthday,
+              regDate: userData.regDate,
+              points: userData.points,
+              memberType: userData.memberType,
+              isMobileVerified: userData.isMobileVerified
+            }
+          });
+          
+          // Fill in profile data with priority to PII endpoint data
+          if (userData.fname && userData.lname && !profile.fullName) {
+            profile.fullName = `${userData.fname} ${userData.lname}`;
+          } else if (userData.name && !profile.fullName) {
+            profile.fullName = userData.name;
+          }
+          
+          // Extract email if not found before
+          if (userData.email && !profile.email) {
+            profile.email = userData.email;
+          }
+          
+          // Extract phone if not found before
+          if (userData.mobile && !profile.phoneNumber) {
+            profile.phoneNumber = userData.mobile;
+          }
+          
+          // Always update these fields from PII endpoint as it's the authoritative source
+          profile.birthDate = userData.birthday || profile.birthDate;
+          profile.gender = userData.gender || profile.gender;
+          profile.registerDate = userData.regDate || profile.registerDate;
+          
+          addDebugLog('info', 'Profile Updated with PII Data', {
+            customerId: profile.customerId,
+            updatedFields: {
+              fullName: profile.fullName,
+              email: profile.email,
+              phoneNumber: profile.phoneNumber,
+              birthDate: profile.birthDate,
+              gender: profile.gender,
+              registerDate: profile.registerDate
+            }
+          });
+        }
+      } catch (error) {
+        console.warn("Failed to fetch full PII data:", error);
+        addDebugLog('error', 'PII Data Fetch Failed', {
+          customerId: customerId,
+          error: error.message,
+          fallbackMessage: 'Will try fallback search method if email is available'
+        });
+      }
+
+      // Step 5: Fallback - Try to fetch additional profile data from search endpoint if we have email/phone and PII fetch failed
+      if ((profile.email && profile.email !== "") && (!profile.birthDate || !profile.gender || !profile.registerDate)) {
         try {
           const searchRequest: ApiRequest = {
             url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=${profile.email}&customerId=`,
             method: "GET",
             token: token.trim(),
           };
-          addDebugLog('request', 'Fetching Additional Profile Data via Search', searchRequest, searchRequest.url, searchRequest.method);
+          addDebugLog('request', 'Fetching Additional Profile Data via Search (Fallback)', searchRequest, searchRequest.url, searchRequest.method);
           const searchRes = await apiRequest("POST", "/api/proxy", searchRequest);
           const searchData = await searchRes.json();
-          addDebugLog('response', 'Search Profile Response', {
+          addDebugLog('response', 'Search Profile Response (Fallback)', {
             status: searchData.status,
             dataStructure: typeof searchData.data,
             isArray: Array.isArray(searchData.data),
@@ -1407,14 +1488,14 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           if (searchData.status === 200 && searchData.data && searchData.data.length > 0) {
             const userData = searchData.data[0];
             
-            // Fill in any missing profile data
+            // Fill in any missing profile data only if not already found from PII endpoint
             if (!profile.fullName) profile.fullName = userData.fullName || userData.name || "";
-            if (!profile.birthDate) profile.birthDate = userData.birthDate || userData.dateOfBirth;
+            if (!profile.birthDate) profile.birthDate = userData.birthDate || userData.dateOfBirth || userData.birthday;
             if (!profile.gender) profile.gender = userData.gender;
-            if (!profile.registerDate) profile.registerDate = userData.registerDate || userData.createdAt;
+            if (!profile.registerDate) profile.registerDate = userData.registerDate || userData.createdAt || userData.regDate;
           }
         } catch (error) {
-          console.warn("Failed to fetch additional profile data:", error);
+          console.warn("Failed to fetch additional profile data via fallback search:", error);
         }
       }
 
@@ -2134,6 +2215,45 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               }
             }
           } catch (error) {
+          }
+
+          // Fetch full PII data including birthday, register date, and gender using customer ID
+          try {
+            const piiRequest: ApiRequest = {
+              url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId=${actualCustomerId}`,
+              method: "GET",
+              token: token.trim(),
+            };
+            const piiRes = await apiRequest("POST", "/api/proxy", piiRequest);
+            const piiData = await piiRes.json();
+            
+            if (piiData.status === 200 && piiData.data && piiData.data.length > 0) {
+              const userData = piiData.data[0];
+              
+              // Fill in profile data with priority to PII endpoint data
+              if (userData.fname && userData.lname && !profile.fullName) {
+                profile.fullName = `${userData.fname} ${userData.lname}`;
+              } else if (userData.name && !profile.fullName) {
+                profile.fullName = userData.name;
+              }
+              
+              // Extract email if not found before
+              if (userData.email && !profile.email) {
+                profile.email = userData.email;
+              }
+              
+              // Extract phone if not found before
+              if (userData.mobile && !profile.phoneNumber) {
+                profile.phoneNumber = userData.mobile;
+              }
+              
+              // Always update these fields from PII endpoint as it's the authoritative source
+              profile.birthDate = userData.birthday || profile.birthDate;
+              profile.gender = userData.gender || profile.gender;
+              profile.registerDate = userData.regDate || profile.registerDate;
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch full PII data for ${actualCustomerId}:`, error);
           }
 
           // Skip profiles with Unknown fullName or errors

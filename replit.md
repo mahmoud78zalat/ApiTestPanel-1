@@ -48,6 +48,14 @@ The application uses a monorepo structure with shared TypeScript schemas between
 # Recent Changes
 
 ## August 16, 2025
+- **Enhanced Full Profile Fetching with Complete PII Data**: Integrated new customer PII endpoint to ensure comprehensive customer profile data collection
+  - Added new Step 4 in profile fetching process that calls `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId={customerId}`
+  - This endpoint provides authoritative customer data including birthday, register date, and gender from the customer database
+  - Profile fetching now prioritizes PII endpoint data as the most reliable source for customer information
+  - Enhanced both single profile fetch and bulk processing modes to include the new PII data step
+  - Improved data extraction logic to handle the specific response format (fname/lname, birthday, regDate, gender)
+  - Added comprehensive debug logging for the new PII endpoint to track data retrieval success
+  - Fallback search endpoint remains as backup option if PII fetch fails or has missing data
 - **Fixed Console Flooding**: Removed excessive console logging that was causing performance issues and console flooding during API requests
 - **Enhanced Export Currency Display**: Updated both CSV and TXT export functions to include proper currency symbols with all monetary amounts
   - Total purchase amounts now show with currency (e.g., `AED1,450.25` instead of `1450.25`)
