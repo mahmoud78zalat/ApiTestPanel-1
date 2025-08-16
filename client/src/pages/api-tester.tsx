@@ -259,9 +259,6 @@ export default function ApiTester() {
     if (type === 'response' || type === 'error') {
       setShowDebugPanel(true);
     }
-    
-    console.log(`[API_DEBUG] ${type.toUpperCase()} - ${title}:`, data);
-    console.log(`[API_DEBUG] RAW JSON:`, JSON.stringify(data, null, 2));
   };
 
   // Helper function to construct URL from template and parameters
@@ -335,21 +332,31 @@ export default function ApiTester() {
       'Fetched At'
     ];
 
-    // Sort profiles by country with UAE customers first
+    // Count customers by country
+    const customerCountByCountry = {};
+    collectedProfiles.forEach(profile => {
+      const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+      const country = (primaryAddress?.country || 'Unknown').toUpperCase();
+      customerCountByCountry[country] = (customerCountByCountry[country] || 0) + 1;
+    });
+
+    // Sort profiles by customer count per country (most to least)
     const sortedProfiles = [...collectedProfiles].sort((a, b) => {
       const getCountry = (profile) => {
         const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
-        return primaryAddress?.country || 'Unknown';
+        return (primaryAddress?.country || 'Unknown').toUpperCase();
       };
       
-      const countryA = getCountry(a).toUpperCase();
-      const countryB = getCountry(b).toUpperCase();
+      const countryA = getCountry(a);
+      const countryB = getCountry(b);
       
-      // UAE customers first
-      if (countryA === 'UAE' && countryB !== 'UAE') return -1;
-      if (countryA !== 'UAE' && countryB === 'UAE') return 1;
+      const countA = customerCountByCountry[countryA] || 0;
+      const countB = customerCountByCountry[countryB] || 0;
       
-      // Then alphabetical order
+      // Sort by customer count (descending), then alphabetical
+      if (countA !== countB) {
+        return countB - countA; // Higher count first
+      }
       return countryA.localeCompare(countryB);
     });
 
@@ -458,21 +465,31 @@ export default function ApiTester() {
       return;
     }
 
-    // Sort profiles by country with UAE customers first
+    // Count customers by country and sort by customer count (most to least)
+    const customerCountByCountry = {};
+    collectedProfiles.forEach(profile => {
+      const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+      const country = primaryAddress?.country || 'Unknown Country';
+      customerCountByCountry[country] = (customerCountByCountry[country] || 0) + 1;
+    });
+
+    // Sort profiles by customer count per country (most to least)
     const sortedProfiles = [...collectedProfiles].sort((a, b) => {
       const getCountry = (profile) => {
         const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
-        return primaryAddress?.country || 'Unknown';
+        return primaryAddress?.country || 'Unknown Country';
       };
       
-      const countryA = getCountry(a).toUpperCase();
-      const countryB = getCountry(b).toUpperCase();
+      const countryA = getCountry(a);
+      const countryB = getCountry(b);
       
-      // UAE customers first
-      if (countryA === 'UAE' && countryB !== 'UAE') return -1;
-      if (countryA !== 'UAE' && countryB === 'UAE') return 1;
+      const countA = customerCountByCountry[countryA] || 0;
+      const countB = customerCountByCountry[countryB] || 0;
       
-      // Then alphabetical order
+      // Sort by customer count (descending), then alphabetical
+      if (countA !== countB) {
+        return countB - countA; // Higher count first
+      }
       return countryA.localeCompare(countryB);
     });
 
@@ -488,11 +505,15 @@ export default function ApiTester() {
       profilesByCountry[country].push(profile);
     });
 
-    // Create formatted content organized by country
+    // Create formatted content organized by country (sorted by customer count)
     const countryKeys = Object.keys(profilesByCountry).sort((a, b) => {
-      // UAE first, then alphabetical
-      if (a.toUpperCase() === 'UAE' && b.toUpperCase() !== 'UAE') return -1;
-      if (a.toUpperCase() !== 'UAE' && b.toUpperCase() === 'UAE') return 1;
+      const countA = customerCountByCountry[a] || 0;
+      const countB = customerCountByCountry[b] || 0;
+      
+      // Sort by customer count (descending), then alphabetical
+      if (countA !== countB) {
+        return countB - countA; // Higher count first
+      }
       return a.localeCompare(b);
     });
 
@@ -882,8 +903,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         const orderRes = await apiRequest("POST", "/api/proxy", orderRequest);
         const orderData = await orderRes.json();
         
-        // Debug log the complete response
-        console.log('Order API Response:', orderData);
+
         
         if (orderData.status === 200 && orderData.data && orderData.data.data) {
           const actualOrderData = orderData.data.data;
@@ -894,7 +914,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                             actualOrderData.customer?.customerId;
           
           if (customerId) {
-            console.log(`Extracted customer ID ${customerId} from order ${input}`);
             toast({
               title: "Customer ID found",
               description: `Found customer ID ${customerId} for order ${input}, fetching full profile...`,
@@ -902,7 +921,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
             // Now fetch the full profile using the extracted customer ID
             await handleFetchFullProfile(customerId.toString());
           } else {
-            console.error('Order data structure:', actualOrderData);
             throw new Error(`Customer ID not found in order details. Available fields: ${Object.keys(actualOrderData).join(', ')}`);
           }
         } else if (orderData.data && orderData.data.status === false) {
@@ -912,7 +930,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           throw new Error(`Failed to fetch order details: ${orderData.statusText || orderData.data?.message || 'Unknown error'}`);
         }
       } catch (error) {
-        console.error('Order lookup error:', error);
         toast({
           title: "Order lookup failed",
           description: error.message || "Could not fetch customer from order ID. Please verify the order ID exists and try again.",
@@ -1792,7 +1809,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                 
                 if (extractedCustomerId) {
                   actualCustomerId = extractedCustomerId.toString();
-                  console.log(`Bulk: Extracted customer ID ${actualCustomerId} from order ${value}`);
                 } else {
                   throw new Error('Customer ID not found in order details');
                 }
@@ -1800,7 +1816,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                 throw new Error(`Failed to fetch order details: ${orderData.statusText}`);
               }
             } catch (error) {
-              console.warn(`Failed to extract customer ID from order ${value}:`, error);
               const errorResponse: ApiResponse = {
                 status: 400,
                 statusText: 'Order Lookup Failed',
@@ -1820,7 +1835,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           
           // Check if profile already exists using the actual customer ID
           if (collectedProfiles.some(profile => profile.customerId === actualCustomerId)) {
-            console.log(`Profile for customer ${actualCustomerId} already exists, skipping`);
             const skipResponse: ApiResponse = {
               status: 200,
               statusText: 'Already exists',
@@ -2101,28 +2115,22 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                         // Set the email from order as it's the most reliable source
                         profile.email = orderEmail;
                         emailFound = true;
-                        console.log(`BULK: Email extracted from order ${orderId}: ${orderEmail}`);
+
                       }
                     }
                   } catch (error) {
-                    console.warn(`BULK: Failed to fetch email from order ${order.orderId || order.id}:`, error);
                     // Continue to next order
                   }
                 }
                 
                 // If no email found from orders, keep any email that might have been found from profile
-                if (!emailFound && (!profile.email || profile.email === "")) {
-                  console.log('BULK: No email found from orders');
-                }
               }
             }
           } catch (error) {
-            console.warn(`Failed to fetch orders for ${actualCustomerId}:`, error);
           }
 
           // Skip profiles with Unknown fullName or errors
           if (!profile.fullName || profile.fullName === "Unknown" || profile.fullName.trim() === "") {
-            console.warn(`Skipping profile for customer ${actualCustomerId} - invalid name: ${profile.fullName}`);
             
             const skipResponse: ApiResponse = {
               status: 200,
