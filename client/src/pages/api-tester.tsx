@@ -364,16 +364,18 @@ export default function ApiTester() {
     const csvRows = sortedProfiles.map(profile => {
       const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
       const orders = profile.latestOrders || [];
+      const currency = getActualCurrency(orders);
       
       // Prepare order data for up to 5 orders
       const orderData = [];
       for (let i = 0; i < 5; i++) {
         const order = orders[i];
         if (order) {
+          const orderAmount = order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
           orderData.push(
             order.orderId || order.id || '',
             order.createDate || order.date || order.orderDate || '',
-            order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0,
+            orderAmount > 0 ? `${currency}${orderAmount}` : '',
             (() => {
               const shipmentStatus = order.shipStatus || order.status || 'Unknown';
               const orderStatus = order.orderStatus || 'Unknown';
@@ -388,13 +390,15 @@ export default function ApiTester() {
         }
       }
       
+      const totalAmount = profile.totalPurchasesAmount || 0;
+      
       return [
         profile.customerId || '',
         `"${profile.fullName || ''}"`,
         profile.email || '',
         profile.phoneNumber || '',
         profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0),
-        profile.totalPurchasesAmount || 0,
+        totalAmount > 0 ? `${currency}${totalAmount}` : '0',
         profile.addresses ? profile.addresses.length : 0,
         primaryAddress ? `"${primaryAddress.address || primaryAddress.addressLine1 || primaryAddress.street || ''}"` : '',
         primaryAddress ? (primaryAddress.city || '') : '',
@@ -529,6 +533,7 @@ ${'#'.repeat(60)}
       const countryProfiles = profiles.map((profile, profileIndex) => {
         const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
         const orders = profile.latestOrders || [];
+        const currency = getActualCurrency(orders);
         
         // Format latest orders section
         let ordersSection = '';
@@ -546,13 +551,15 @@ ${'#'.repeat(60)}
             return `    Order ${orderIndex + 1}:
       ID: ${order.orderId || order.id || 'N/A'}
       Date: ${orderDate}
-      Amount: ${orderAmount}
+      Amount: ${orderAmount > 0 ? `${currency}${orderAmount}` : 'N/A'}
       Status: ${combinedStatus}
       Invoice URL: ${invoiceUrl}`;
           }).join('\n\n');
         } else {
           ordersSection = '    No orders found';
         }
+        
+        const totalAmount = profile.totalPurchasesAmount || 0;
         
         return `=== ${country.toUpperCase()} CUSTOMER #${profileIndex + 1} ===
 Customer ID: ${profile.customerId || 'N/A'}
@@ -567,7 +574,7 @@ ${primaryAddress ? `  Primary Address: ${primaryAddress.address || primaryAddres
   Country: ${primaryAddress.country || 'N/A'}` : '  No address found'}
 
 Total Orders: ${profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0)}
-Total Purchase Amount: ${profile.totalPurchasesAmount || 0}
+Total Purchase Amount: ${totalAmount > 0 ? `${currency}${totalAmount}` : '0'}
 
 LATEST 5 ORDERS:
 ${ordersSection}

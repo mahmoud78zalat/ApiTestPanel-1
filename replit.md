@@ -47,6 +47,17 @@ The application uses a monorepo structure with shared TypeScript schemas between
 
 # Recent Changes
 
+## August 16, 2025
+- **Fixed Console Flooding**: Removed excessive console logging that was causing performance issues and console flooding during API requests
+- **Enhanced Export Currency Display**: Updated both CSV and TXT export functions to include proper currency symbols with all monetary amounts
+  - Total purchase amounts now show with currency (e.g., `AED1,450.25` instead of `1450.25`)
+  - Individual order amounts display with appropriate currency symbols
+  - Currency detection uses existing `getActualCurrency()` function for accuracy
+- **Improved Export Sorting**: Modified export functionality to sort countries by customer count (most to least) instead of UAE-first alphabetical
+  - Countries with the highest customer count appear first in exports
+  - Secondary alphabetical sorting for countries with equal customer counts
+  - Applies to both CSV and TXT export formats
+
 ## August 14, 2025
 - Extended HTTP method support to include HEAD, OPTIONS, TRACE, and CONNECT methods
 - Added three new API endpoint presets:
