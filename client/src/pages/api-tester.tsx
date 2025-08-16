@@ -298,6 +298,9 @@ export default function ApiTester() {
       'Full Name',
       'Email',
       'Phone Number',
+      'Birthday',
+      'Gender',
+      'Registration Date',
       'Total Orders',
       'Total Purchase Amount',
       'Address Count',
@@ -397,6 +400,9 @@ export default function ApiTester() {
         `"${profile.fullName || ''}"`,
         profile.email || '',
         profile.phoneNumber || '',
+        profile.birthDate || '',
+        profile.gender || '',
+        profile.registerDate || '',
         profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0),
         totalAmount > 0 ? `${totalAmount} ${currency.replace('$', 'USD').replace('€', 'EUR').replace('£', 'GBP')}` : '0',
         profile.addresses ? profile.addresses.length : 0,
@@ -566,6 +572,11 @@ Customer ID: ${profile.customerId || 'N/A'}
 Full Name: ${profile.fullName || 'N/A'}
 Email: ${profile.email || 'N/A'}
 Phone Number: ${profile.phoneNumber || 'N/A'}
+
+PERSONAL INFO:
+  Birthday: ${profile.birthDate || 'N/A'}
+  Gender: ${profile.gender || 'N/A'}
+  Registration Date: ${profile.registerDate || 'N/A'}
 
 ADDRESS INFO:
   Address Count: ${profile.addresses ? profile.addresses.length : 0}

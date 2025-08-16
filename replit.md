@@ -66,6 +66,11 @@ The application uses a monorepo structure with shared TypeScript schemas between
   - Countries with the highest customer count appear first in exports
   - Secondary alphabetical sorting for countries with equal customer counts
   - Applies to both CSV and TXT export formats
+- **Enhanced Profile Export with PII Data**: Added birthday, gender, and registration date fields to both CSV and TXT export functions
+  - CSV exports now include Birthday, Gender, and Registration Date columns positioned after phone number
+  - TXT exports feature organized "PERSONAL INFO" section with birthday, gender, and registration date
+  - Data comes from the integrated PII endpoint for comprehensive customer information
+  - All export formats maintain proper organization and readability
 
 ## August 14, 2025
 - Extended HTTP method support to include HEAD, OPTIONS, TRACE, and CONNECT methods
