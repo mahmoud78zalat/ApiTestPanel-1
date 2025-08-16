@@ -7,6 +7,7 @@
 
 import { apiRequest } from "@/lib/queryClient";
 import type { ApiRequest, ApiResponse } from "@shared/schema";
+import { requestScheduler } from "./request-scheduler";
 
 /**
  * Main API service class for handling HTTP requests through the backend proxy
@@ -39,31 +40,32 @@ export class ApiService {
     requests: ApiRequest[], 
     onProgress?: (completed: number, total: number) => void
   ): Promise<Array<{ success: boolean; data?: ApiResponse; error?: string }>> {
-    const results: Array<{ success: boolean; data?: ApiResponse; error?: string }> = [];
+    // Convert requests to functions for batch processing
+    const requestFunctions = requests.map(request => async () => {
+      return await requestScheduler.makeCachedRequest(request, this.makeRequest.bind(this));
+    });
 
-    for (let i = 0; i < requests.length; i++) {
-      try {
-        const data = await this.makeRequest(requests[i]);
-        results.push({ success: true, data });
-      } catch (error) {
-        results.push({ 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Unknown error' 
-        });
-      }
+    // Process in batches with progress tracking
+    const results = await requestScheduler.processBatch(requestFunctions, {
+      batchSize: 8,
+      delayBetweenBatches: 50,
+      timeoutMs: 30000
+    });
 
-      // Report progress
+    // Convert results and report progress
+    return results.map((result, index) => {
       if (onProgress) {
-        onProgress(i + 1, requests.length);
+        onProgress(index + 1, requests.length);
       }
 
-      // Small delay to prevent overwhelming the server
-      if (i < requests.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-
-    return results;
+      return {
+        success: result.status === 'fulfilled',
+        data: result.value,
+        error: result.status === 'rejected' 
+          ? (result.reason instanceof Error ? result.reason.message : 'Unknown error')
+          : undefined
+      };
+    });
   }
 
   /**
@@ -94,53 +96,87 @@ export class BrandsForLessService extends ApiService {
   };
 
   /**
-   * Fetches customer profile data from multiple endpoints
+   * Fetches comprehensive customer profile by calling multiple endpoints sequentially
+   * This maintains the original behavior of building rich profile data
    * 
    * @param customerId - Customer ID to fetch profile for
    * @param token - Authentication token
-   * @returns Promise resolving to comprehensive profile data
+   * @returns Promise resolving to comprehensive profile data from the final enriched response
    */
   static async fetchCustomerProfile(customerId: string, token: string): Promise<any> {
     const requests = [
-      // Customer basic info
+      // 1. Basic customer info
       {
-        url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId=${customerId}`,
-        method: "GET" as const,
+        url: `https://api.brandsforlessuae.com/customer/api/v1/list?limit=1&offset=0&customerId=${customerId}`,
+        method: 'POST' as const,
         token,
-        headers: this.BASE_HEADERS,
+        headers: this.BASE_HEADERS
       },
-      // Customer orders
-      {
-        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=1000`,
-        method: "GET" as const,
-        token,
-        headers: this.BASE_HEADERS,
-      },
-      // Customer address
+      // 2. Customer addresses
       {
         url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${customerId}`,
-        method: "GET" as const,
+        method: 'POST' as const,
         token,
-        headers: this.BASE_HEADERS,
+        headers: this.BASE_HEADERS
       },
-      // PII data
+      // 3. Customer orders (shipment endpoint for rich data)
+      {
+        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=1000`,
+        method: 'GET' as const,
+        token,
+        headers: this.BASE_HEADERS
+      },
+      // 4. PII/User data (final enriched endpoint)
       {
         url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId=${customerId}`,
-        method: "GET" as const,
+        method: 'GET' as const,
         token,
-        headers: this.BASE_HEADERS,
+        headers: this.BASE_HEADERS
       }
     ];
 
-    const results = await this.makeBulkRequests(requests);
-    
-    // Process and combine results
-    return {
-      basicInfo: results[0]?.success ? results[0].data : null,
-      orders: results[1]?.success ? results[1].data : null,
-      addresses: results[2]?.success ? results[2].data : null,
-      piiData: results[3]?.success ? results[3].data : null,
+    let lastResponse = null;
+
+    // Execute requests sequentially to build up the data progressively
+    for (let i = 0; i < requests.length; i++) {
+      try {
+        const response = await this.makeRequest(requests[i]);
+        lastResponse = response;
+        
+        // Small delay between requests to prevent overwhelming the API
+        if (i < requests.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      } catch (error) {
+        console.error(`Request ${i + 1} failed for customer ${customerId}:`, error);
+        // Continue to next request even if one fails
+      }
+    }
+
+    // Return the final response which should have the richest data
+    return lastResponse;
+  }
+
+  /**
+   * Batch process multiple customer profiles with optimal performance
+   * 
+   * @param customerIds - Array of customer IDs to process
+   * @param token - Authentication token
+   * @returns Promise resolving to array of profile results
+   */
+  static async fetchCustomerProfilesBatch(
+    customerIds: string[], 
+    token: string
+  ): Promise<Array<{ customerId: string; profile?: any; error?: string }>> {
+    const profileFetcher = async (customerId: string) => {
+      return await this.fetchCustomerProfile(customerId, token);
     };
+
+    return await requestScheduler.processCustomerProfilesBatch(customerIds, profileFetcher, {
+      batchSize: 6, // Slightly smaller batches for profile fetching since each profile makes 4 API calls
+      delayBetweenBatches: 100, // Slightly longer delay for complex operations
+      timeoutMs: 45000 // Longer timeout for profile operations
+    });
   }
 
   /**

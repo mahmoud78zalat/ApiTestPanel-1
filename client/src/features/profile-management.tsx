@@ -112,6 +112,15 @@ export function ProfileManagement({
             >
               <FileText className="w-4 h-4 mr-2" />
               Export TXT
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onExportProfiles('txt')}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Export TXT
             </Button>
             <Button
               variant="outline"

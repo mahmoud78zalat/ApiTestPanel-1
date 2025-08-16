@@ -74,22 +74,30 @@ export const useApiRequest = () => {
    */
   const profileFetchMutation = useMutation({
     mutationFn: async (customerId: string): Promise<CustomerProfile> => {
-      const profileData = await BrandsForLessService.fetchCustomerProfile(customerId, token);
+      const finalResponse = await BrandsForLessService.fetchCustomerProfile(customerId, token);
       
-      // Process and combine the profile data
+      if (!finalResponse || !finalResponse.data) {
+        throw new Error('No profile data returned from API');
+      }
+
+      // The final response should contain the enriched customer data
+      // Extract profile data from the final enriched response
+      const responseData = finalResponse.data;
+      
       const profile: CustomerProfile = {
         customerId,
-        fullName: extractFullName(profileData.basicInfo),
-        addresses: extractAddresses(profileData.addresses),
-        birthDate: extractBirthDate(profileData.piiData),
-        phoneNumber: extractPhoneNumber(profileData.basicInfo),
-        email: extractEmail(profileData.basicInfo),
-        latestOrders: extractOrders(profileData.orders),
-        gender: extractGender(profileData.piiData),
-        registerDate: extractRegisterDate(profileData.piiData),
-        totalPurchasesAmount: calculateTotalPurchases(profileData.orders),
-        totalOrdersCount: countTotalOrders(profileData.orders),
+        fullName: extractFullNameFromFinal(responseData),
+        addresses: extractAddressesFromFinal(responseData),
+        birthDate: extractBirthDateFromFinal(responseData),
+        phoneNumber: extractPhoneNumberFromFinal(responseData),
+        email: extractEmailFromFinal(responseData),
+        latestOrders: extractOrdersFromFinal(responseData),
+        gender: extractGenderFromFinal(responseData),
+        registerDate: extractRegisterDateFromFinal(responseData),
+        totalPurchasesAmount: calculateTotalPurchasesFromFinal(responseData),
+        totalOrdersCount: countTotalOrdersFromFinal(responseData),
         fetchedAt: getCurrentTimestamp(),
+        rawData: responseData // Keep raw data for debugging
       };
 
       return profile;
@@ -178,60 +186,81 @@ export const useApiRequest = () => {
   };
 };
 
-// Helper functions to extract data from API responses
-function extractFullName(basicInfoResponse: any): string {
-  if (!basicInfoResponse?.data?.data?.length) return "Unknown";
-  const user = basicInfoResponse.data.data[0];
-  return `${user.fname || ''} ${user.lname || ''}`.trim() || "Unknown";
+// Helper functions to extract data from final enriched API response
+function extractFullNameFromFinal(responseData: any): string {
+  // Try multiple possible paths based on the final response structure
+  if (responseData?.data?.data?.length) {
+    const user = responseData.data.data[0];
+    return `${user.fname || ''} ${user.lname || ''}`.trim() || "Unknown";
+  }
+  if (responseData?.data?.length) {
+    const user = responseData.data[0];
+    return `${user.fname || ''} ${user.lname || ''}`.trim() || "Unknown";
+  }
+  return responseData?.fullName || responseData?.name || "Unknown";
 }
 
-function extractAddresses(addressResponse: any): any[] {
-  if (!addressResponse?.data?.data) return [];
-  return addressResponse.data.data.map((addr: any) => ({
-    address: addr.address,
-    city: addr.city,
-    country: addr.country
-  }));
+function extractAddressesFromFinal(responseData: any): any[] {
+  // Look for addresses in various possible locations
+  const addresses = responseData?.addresses || responseData?.data?.addresses || responseData?.address || [];
+  if (Array.isArray(addresses)) {
+    return addresses.map((addr: any) => ({
+      address: addr.address || addr.fullAddress,
+      city: addr.city,
+      country: addr.country
+    }));
+  }
+  return [];
 }
 
-function extractBirthDate(piiResponse: any): string | undefined {
-  if (!piiResponse?.data?.data?.data?.length) return undefined;
-  return piiResponse.data.data.data[0]?.birthday;
+function extractBirthDateFromFinal(responseData: any): string | undefined {
+  return responseData?.birthday || responseData?.birthDate || 
+         responseData?.data?.birthday || responseData?.data?.birthDate;
 }
 
-function extractPhoneNumber(basicInfoResponse: any): string | undefined {
-  if (!basicInfoResponse?.data?.data?.length) return undefined;
-  return basicInfoResponse.data.data[0]?.mobile;
+function extractPhoneNumberFromFinal(responseData: any): string | undefined {
+  return responseData?.mobile || responseData?.phone || responseData?.phoneNumber ||
+         responseData?.data?.mobile || responseData?.data?.phone;
 }
 
-function extractEmail(basicInfoResponse: any): string | undefined {
-  if (!basicInfoResponse?.data?.data?.length) return undefined;
-  return basicInfoResponse.data.data[0]?.email;
+function extractEmailFromFinal(responseData: any): string | undefined {
+  return responseData?.email || responseData?.data?.email;
 }
 
-function extractOrders(ordersResponse: any): any[] {
-  if (!ordersResponse?.data?.data) return [];
-  return ordersResponse.data.data.slice(0, 10); // Keep last 10 orders
+function extractOrdersFromFinal(responseData: any): any[] {
+  const orders = responseData?.orders || responseData?.latestOrders || 
+                responseData?.data?.orders || responseData?.orderHistory || [];
+  if (Array.isArray(orders)) {
+    return orders.slice(0, 10); // Keep last 10 orders
+  }
+  return [];
 }
 
-function extractGender(piiResponse: any): string | undefined {
-  if (!piiResponse?.data?.data?.data?.length) return undefined;
-  return piiResponse.data.data.data[0]?.gender;
+function extractGenderFromFinal(responseData: any): string | undefined {
+  return responseData?.gender || responseData?.data?.gender;
 }
 
-function extractRegisterDate(piiResponse: any): string | undefined {
-  if (!piiResponse?.data?.data?.data?.length) return undefined;
-  return piiResponse.data.data.data[0]?.regDate;
+function extractRegisterDateFromFinal(responseData: any): string | undefined {
+  return responseData?.regDate || responseData?.registerDate || 
+         responseData?.registrationDate || responseData?.data?.regDate;
 }
 
-function calculateTotalPurchases(ordersResponse: any): number {
-  if (!ordersResponse?.data?.data) return 0;
-  return ordersResponse.data.data.reduce((sum: number, order: any) => {
-    return sum + (parseFloat(order.totalAmount) || 0);
-  }, 0);
+function calculateTotalPurchasesFromFinal(responseData: any): number {
+  const orders = responseData?.orders || responseData?.latestOrders || 
+                responseData?.data?.orders || responseData?.orderHistory || [];
+  if (Array.isArray(orders)) {
+    return orders.reduce((sum: number, order: any) => {
+      return sum + (parseFloat(order.totalAmount) || 0);
+    }, 0);
+  }
+  return responseData?.totalPurchaseAmount || responseData?.totalAmount || 0;
 }
 
-function countTotalOrders(ordersResponse: any): number {
-  if (!ordersResponse?.data?.data) return 0;
-  return ordersResponse.data.data.length;
+function countTotalOrdersFromFinal(responseData: any): number {
+  const orders = responseData?.orders || responseData?.latestOrders || 
+                responseData?.data?.orders || responseData?.orderHistory || [];
+  if (Array.isArray(orders)) {
+    return orders.length;
+  }
+  return responseData?.totalOrders || responseData?.orderCount || 0;
 }

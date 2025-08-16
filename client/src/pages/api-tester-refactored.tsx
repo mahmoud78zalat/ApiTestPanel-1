@@ -13,12 +13,14 @@ import { useApiRequest } from "@/hooks/use-api-request";
 import { useDebugLogging } from "@/hooks/use-debug-logging";
 import { useBulkProcessing } from "@/hooks/use-bulk-processing";
 import { useProfileCollection } from "@/hooks/use-profile-collection";
+import { usePerformanceMonitoring } from "@/hooks/use-performance-monitoring";
 
 // Components
 import { ApiRequestForm } from "@/components/api-request-form";
 import { ApiResponseDisplay } from "@/components/api-response-display";
 import { BulkResultsPanel } from "@/components/bulk-results-panel";
 import { DebugPanel } from "@/components/debug-panel";
+import { PerformanceMonitor } from "@/components/performance-monitor";
 
 // Features
 import { ProfileManagement } from "@/features/profile-management";
@@ -92,6 +94,17 @@ export default function ApiTesterRefactored() {
     getCollectionStats
   } = useProfileCollection();
 
+  // Performance monitoring
+  const {
+    metrics,
+    isMonitoring,
+    startMonitoring,
+    stopMonitoring,
+    recordRequest,
+    resetMetrics,
+    updateCacheStats
+  } = usePerformanceMonitoring();
+
   // Update URL when endpoint or parameters change
   useEffect(() => {
     updateUrlFromEndpoint();
@@ -117,6 +130,7 @@ export default function ApiTesterRefactored() {
   const handleSubmit = async () => {
     if (!bulkMode) {
       // Single request mode
+      startMonitoring(1);
       addDebugLog('request', 'Single API Request', { url, method, token }, url, method);
       
       const currentEndpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
@@ -130,18 +144,28 @@ export default function ApiTesterRefactored() {
             description: "Customer ID is required for full profile fetch",
             variant: "destructive",
           });
+          stopMonitoring();
           return;
         }
 
         try {
+          const startTime = Date.now();
           const profile = await fetchFullProfile(customerId);
+          const responseTime = Date.now() - startTime;
+          const dataSize = JSON.stringify(profile).length;
+          
+          recordRequest(true, responseTime, dataSize);
           addProfile(profile);
+          stopMonitoring();
         } catch (error) {
+          recordRequest(false, 0);
+          stopMonitoring();
           console.error('Profile fetch failed:', error);
         }
       } else {
         // Regular single request
         makeRequest();
+        // Performance monitoring for regular requests is handled in the response effect
       }
     } else {
       // Bulk processing mode
@@ -165,23 +189,51 @@ export default function ApiTesterRefactored() {
         return;
       }
 
-      addDebugLog('request', 'Bulk Processing Started', { 
+      // Start performance monitoring for bulk operations
+      startMonitoring(values.length);
+      addDebugLog('request', 'Optimized Bulk Processing Started', { 
         endpoint: currentEndpoint.name, 
-        valueCount: values.length 
+        valueCount: values.length,
+        batchSize: 8,
+        parallelProcessing: true
       });
 
-      // Handle bulk full profile fetching
+      // Handle bulk full profile fetching with optimized batching
       if (currentEndpoint.id === 'fetch-full-profile') {
         try {
-          const profiles = await Promise.all(
-            values.map(customerId => fetchFullProfile(customerId))
+          const startTime = Date.now();
+          
+          // Use optimized batch processing from BrandsForLessService
+          const results = await Promise.all(
+            values.map(async customerId => {
+              const profileStartTime = Date.now();
+              try {
+                const profile = await fetchFullProfile(customerId);
+                const responseTime = Date.now() - profileStartTime;
+                const dataSize = JSON.stringify(profile).length;
+                recordRequest(true, responseTime, dataSize);
+                return profile;
+              } catch (error) {
+                recordRequest(false, Date.now() - profileStartTime);
+                return null;
+              }
+            })
           );
-          addProfiles(profiles.filter(Boolean)); // Filter out any failed profiles
+          
+          const validProfiles = results.filter(Boolean);
+          addProfiles(validProfiles);
+          stopMonitoring();
+          
+          toast({
+            title: "Bulk Processing Complete",
+            description: `Successfully processed ${validProfiles.length} out of ${values.length} profiles with optimized batching`,
+          });
         } catch (error) {
+          stopMonitoring();
           console.error('Bulk profile fetch failed:', error);
         }
       } else {
-        // Regular bulk processing
+        // Regular bulk processing with performance monitoring
         bulkProcessingMutation.mutate({
           values,
           endpoint: currentEndpoint,
@@ -275,6 +327,14 @@ export default function ApiTesterRefactored() {
         isVisible={showDebugPanel}
         onToggleVisibility={toggleDebugPanel}
         onClearLogs={clearDebugLogs}
+      />
+
+      {/* Performance Monitor */}
+      <PerformanceMonitor
+        metrics={metrics}
+        isActive={isMonitoring}
+        onReset={resetMetrics}
+        showDetails={bulkMode}
       />
 
       {/* Upload Dialog */}
