@@ -12,12 +12,33 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const requestId = Math.random().toString(36).substr(2, 9);
+  const startTime = performance.now();
+  
+  console.log("📡 QUERY CLIENT REQUEST", requestId);
+  console.log("├─ Method:", method);
+  console.log("├─ URL:", url);
+  console.log("├─ Has Data:", !!data);
+  if (data) {
+    console.log("├─ Data:", JSON.stringify(data).substring(0, 300) + (JSON.stringify(data).length > 300 ? "..." : ""));
+  }
+  console.log("└─ Credentials: include");
+  
   const res = await fetch(url, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  const endTime = performance.now();
+  const duration = Math.round(endTime - startTime);
+  
+  console.log("📨 QUERY CLIENT RESPONSE", requestId);
+  console.log("├─ Status:", res.status, res.statusText);
+  console.log("├─ Duration:", duration + "ms");
+  console.log("├─ Headers:", Object.fromEntries(res.headers.entries()));
+  console.log("└─ OK:", res.ok);
 
   await throwIfResNotOk(res);
   return res;
