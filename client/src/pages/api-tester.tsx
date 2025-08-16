@@ -3408,8 +3408,31 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                     <div className="flex items-center justify-between text-sm text-slate-600">
                       <span>Total collected profiles: {collectedProfiles.length}</span>
                       <span>
-                        Total spending tracked: $
-                        {collectedProfiles.reduce((sum, p) => sum + p.totalPurchasesAmount, 0).toFixed(2)}
+                        Total spending tracked: {(() => {
+                          // Group spending by country/currency
+                          const spendingByCountry = {};
+                          collectedProfiles.forEach(profile => {
+                            const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+                            const country = primaryAddress?.country || 'Unknown';
+                            const currency = getActualCurrency(profile.latestOrders);
+                            
+                            if (!spendingByCountry[country]) {
+                              spendingByCountry[country] = { total: 0, currency };
+                            }
+                            spendingByCountry[country].total += profile.totalPurchasesAmount || 0;
+                          });
+                          
+                          // Format spending by country
+                          const spendingEntries = Object.entries(spendingByCountry);
+                          if (spendingEntries.length === 1) {
+                            const [, { total, currency }] = spendingEntries[0];
+                            return `${currency}${total.toFixed(2)}`;
+                          } else {
+                            return spendingEntries.map(([country, { total, currency }]) => 
+                              `${currency}${total.toFixed(2)} (${country})`
+                            ).join(', ');
+                          }
+                        })()}
                       </span>
                     </div>
                   </div>
