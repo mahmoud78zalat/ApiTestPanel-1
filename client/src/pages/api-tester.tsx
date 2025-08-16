@@ -606,8 +606,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
   };
 
   const parseCSVContent = (content: string): CustomerProfile[] => {
-    console.log('Parsing CSV content:', content.substring(0, 500) + '...');
-    
     // Parse CSV properly handling quoted values and complex format
     const lines = content.split('\n').filter(line => line.trim());
     const profiles: CustomerProfile[] = [];
@@ -621,8 +619,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
       }
     }
     
-    console.log('Found header at line:', headerLineIndex);
-    
     for (let i = headerLineIndex + 1; i < lines.length; i++) {
       const line = lines[i].trim();
       
@@ -633,7 +629,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
       
       // Parse CSV line handling quoted values
       const values = parseCSVLine(line);
-      console.log('Parsed values for line', i, ':', values);
       
       // Need at least customer ID to create a profile
       if (values.length === 0 || !values[0] || values[0].trim() === '') {
@@ -669,11 +664,9 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         fetchedAt: new Date().toISOString()
       };
       
-      console.log('Created profile:', profile);
       profiles.push(profile);
     }
     
-    console.log('Total profiles parsed:', profiles.length);
     return profiles;
   };
 
@@ -709,16 +702,12 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
   };
 
   const parseTXTContent = (content: string): CustomerProfile[] => {
-    console.log('Parsing TXT content:', content.substring(0, 500) + '...');
-    
     const profiles: CustomerProfile[] = [];
     
     // Split by customer sections - handle the exported format
     const customerBlocks = content.split(/Customer \d+:|(?=Customer \d+:)/i).filter(block => block.trim());
     
-    customerBlocks.forEach((block, index) => {
-      console.log(`Processing block ${index}:`, block.substring(0, 200) + '...');
-      
+    customerBlocks.forEach((block) => {
       const lines = block.split('\n').map(line => line.trim()).filter(line => line);
       if (lines.length < 3) return;
       
@@ -732,15 +721,6 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
       const addressMatch = block.match(/(?:Address|Primary Address):\s*(.+?)(?:\n|$)/i);
       const cityMatch = block.match(/(?:City):\s*(.+?)(?:\n|$)/i);
       const countryMatch = block.match(/(?:Country):\s*(.+?)(?:\n|$)/i);
-      
-      console.log('Extracted matches:', {
-        customerId: customerIdMatch?.[1],
-        name: nameMatch?.[1],
-        email: emailMatch?.[1],
-        phone: phoneMatch?.[1],
-        orders: ordersMatch?.[1],
-        spent: spentMatch?.[1]
-      });
       
       if (customerIdMatch && nameMatch) {
         const profile: CustomerProfile = {
@@ -772,12 +752,10 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           fetchedAt: new Date().toISOString()
         };
         
-        console.log('Created profile from TXT:', profile);
         profiles.push(profile);
       }
     });
     
-    console.log('Total TXT profiles parsed:', profiles.length);
     return profiles;
   };
 
@@ -792,16 +770,12 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
     }
 
     try {
-      console.log('Starting file upload for:', uploadFile.name, 'Format:', uploadFormat);
-      
       toast({
         title: "Processing file...",
         description: "Parsing uploaded customer data",
       });
 
       const uploadedProfiles = await parseUploadedFile(uploadFile);
-      
-      console.log('Parsed profiles result:', uploadedProfiles);
       
       if (uploadedProfiles.length === 0) {
         // Provide more specific error information
@@ -811,7 +785,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           reader.readAsText(uploadFile);
         });
         
-        console.log('File content preview:', fileContent.substring(0, 1000));
+
         
         let errorDescription = "The uploaded file doesn't contain valid customer data. ";
         
