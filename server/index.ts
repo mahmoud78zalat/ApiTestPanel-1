@@ -11,6 +11,23 @@ app.use((req, res, next) => {
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
+  // Enhanced request logging for debugging
+  if (path.startsWith("/api")) {
+    console.log("🔷 INCOMING REQUEST 🔷");
+    console.log("Method:", req.method);
+    console.log("Path:", req.path);
+    console.log("Query:", req.query);
+    console.log("Headers:", JSON.stringify(req.headers, null, 2));
+    if (req.body && Object.keys(req.body).length > 0) {
+      console.log("Body:", JSON.stringify(req.body, null, 2));
+    }
+    console.log("IP:", req.ip);
+    console.log("User-Agent:", req.get('User-Agent'));
+    console.log("Content-Type:", req.get('Content-Type'));
+    console.log("Content-Length:", req.get('Content-Length'));
+    console.log("─".repeat(60));
+  }
+
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
     capturedJsonResponse = bodyJson;
@@ -20,6 +37,24 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
+      console.log("🔶 OUTGOING RESPONSE 🔶");
+      console.log("Status:", res.statusCode);
+      console.log("Duration:", duration + "ms");
+      
+      // Log response headers
+      const responseHeaders: Record<string, any> = {};
+      res.getHeaderNames().forEach(name => {
+        responseHeaders[name] = res.getHeader(name);
+      });
+      console.log("Response Headers:", JSON.stringify(responseHeaders, null, 2));
+      
+      if (capturedJsonResponse) {
+        console.log("Response Body:", JSON.stringify(capturedJsonResponse, null, 2));
+      }
+      console.log("═".repeat(60));
+      console.log(""); // Add empty line for readability
+
+      // Keep the original compact log line
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
