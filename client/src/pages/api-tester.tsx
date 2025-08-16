@@ -3565,6 +3565,18 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                                   <p className="text-base">{profile.phoneNumber || 'Not available'}</p>
                                 </div>
                                 <div>
+                                  <Label className="text-sm font-medium text-slate-600">Birthday</Label>
+                                  <p className="text-base">{profile.birthDate || 'Not available'}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Gender</Label>
+                                  <p className="text-base">{profile.gender || 'Not available'}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-slate-600">Registration Date</Label>
+                                  <p className="text-base">{profile.registerDate || 'Not available'}</p>
+                                </div>
+                                <div>
                                   <Label className="text-sm font-medium text-slate-600">Total Orders</Label>
                                   <p className="text-base font-semibold">{profile.totalOrdersCount || profile.latestOrders.length}</p>
                                 </div>
