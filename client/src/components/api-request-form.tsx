@@ -81,12 +81,23 @@ export function ApiRequestForm({
     setCurrentEndpoint(endpoint);
     
     if (endpoint) {
-      // Update method and URL when endpoint changes
+      // Update method when endpoint changes
       onMethodChange(endpoint.method);
-      if (!showCustomUrl) {
-        const constructedUrl = constructUrl(endpoint.url, parameters);
-        onUrlChange(constructedUrl);
+      
+      // When an endpoint is selected, switch to predefined URL mode
+      if (showCustomUrl && selectedEndpoint) {
+        onShowCustomUrlToggle(false);
       }
+      
+      // Update URL when endpoint changes
+      const constructedUrl = constructUrl(endpoint.url, parameters);
+      onUrlChange(constructedUrl);
+      
+      // Add debugging console log
+      console.log("🔄 URL Updated:", constructedUrl);
+      console.log("├─ Endpoint ID:", selectedEndpoint);
+      console.log("├─ Template:", endpoint.url);
+      console.log("└─ Parameters:", parameters);
     }
   }, [selectedEndpoint, parameters, showCustomUrl, onMethodChange, onUrlChange]);
 
@@ -103,7 +114,7 @@ export function ApiRequestForm({
     onTokenChange(DEFAULT_CONFIG.DEFAULT_TOKEN);
     onEndpointChange("");
     onParametersChange({});
-    onShowCustomUrlToggle(true);
+    onShowCustomUrlToggle(false); // Changed to false to match the hook default
     onBulkModeToggle(false);
     onBulkInputChange("");
     onReset();

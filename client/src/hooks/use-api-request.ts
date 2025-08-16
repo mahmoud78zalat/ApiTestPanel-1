@@ -12,7 +12,7 @@ import { constructUrl } from "@/utils/url-utils";
 import { DEFAULT_CONFIG, API_ENDPOINTS } from "@/config/api-endpoints";
 import type { ApiRequest, ApiResponse } from "@/types/api";
 import type { CustomerProfile } from "@shared/schema";
-import { getCurrentTimestamp } from "@/utils/date-utils";
+
 
 export const useApiRequest = () => {
   const { toast } = useToast();
@@ -27,7 +27,7 @@ export const useApiRequest = () => {
   // Endpoint management
   const [selectedEndpoint, setSelectedEndpoint] = useState<string>("");
   const [parameters, setParameters] = useState<Record<string, string>>({});
-  const [showCustomUrl, setShowCustomUrl] = useState(true);
+  const [showCustomUrl, setShowCustomUrl] = useState(false); // Changed to false so URL updates automatically
 
   /**
    * Main API request mutation
@@ -131,7 +131,7 @@ export const useApiRequest = () => {
     setError(null);
     setSelectedEndpoint("");
     setParameters({});
-    setShowCustomUrl(true);
+    setShowCustomUrl(false); // Changed to false to match the initial state
   }, []);
 
   /**
