@@ -375,7 +375,7 @@ export default function ApiTester() {
           orderData.push(
             order.orderId || order.id || '',
             order.createDate || order.date || order.orderDate || '',
-            orderAmount > 0 ? `${currency}${orderAmount}` : '',
+            orderAmount > 0 ? `${orderAmount} ${currency.replace('$', 'USD').replace('€', 'EUR').replace('£', 'GBP')}` : '',
             (() => {
               const shipmentStatus = order.shipStatus || order.status || 'Unknown';
               const orderStatus = order.orderStatus || 'Unknown';
@@ -398,7 +398,7 @@ export default function ApiTester() {
         profile.email || '',
         profile.phoneNumber || '',
         profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0),
-        totalAmount > 0 ? `${currency}${totalAmount}` : '0',
+        totalAmount > 0 ? `${totalAmount} ${currency.replace('$', 'USD').replace('€', 'EUR').replace('£', 'GBP')}` : '0',
         profile.addresses ? profile.addresses.length : 0,
         primaryAddress ? `"${primaryAddress.address || primaryAddress.addressLine1 || primaryAddress.street || ''}"` : '',
         primaryAddress ? (primaryAddress.city || '') : '',
@@ -551,7 +551,7 @@ ${'#'.repeat(60)}
             return `    Order ${orderIndex + 1}:
       ID: ${order.orderId || order.id || 'N/A'}
       Date: ${orderDate}
-      Amount: ${orderAmount > 0 ? `${currency}${orderAmount}` : 'N/A'}
+      Amount: ${orderAmount > 0 ? `${orderAmount} ${currency.replace('$', 'USD').replace('€', 'EUR').replace('£', 'GBP')}` : 'N/A'}
       Status: ${combinedStatus}
       Invoice URL: ${invoiceUrl}`;
           }).join('\n\n');
@@ -574,7 +574,7 @@ ${primaryAddress ? `  Primary Address: ${primaryAddress.address || primaryAddres
   Country: ${primaryAddress.country || 'N/A'}` : '  No address found'}
 
 Total Orders: ${profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0)}
-Total Purchase Amount: ${totalAmount > 0 ? `${currency}${totalAmount}` : '0'}
+Total Purchase Amount: ${totalAmount > 0 ? `${totalAmount} ${currency.replace('$', 'USD').replace('€', 'EUR').replace('£', 'GBP')}` : '0'}
 
 LATEST 5 ORDERS:
 ${ordersSection}
