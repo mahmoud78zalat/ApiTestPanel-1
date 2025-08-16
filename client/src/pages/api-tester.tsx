@@ -1420,8 +1420,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         console.log('Full Response:', JSON.stringify(piiData, null, 2));
         console.log('=== END PII DEBUG ===');
         
-        if (piiData.status === 200 && piiData.data && piiData.data.length > 0) {
-          const userData = piiData.data[0];
+        if (piiData.status === 200 && piiData.data && piiData.data.data && piiData.data.data.length > 0) {
+          const userData = piiData.data.data[0];
           
           console.log('=== PII DATA EXTRACTION ===');
           console.log('Raw userData:', JSON.stringify(userData, null, 2));
@@ -2369,8 +2369,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
             const piiRes = await apiRequest("POST", "/api/proxy", piiRequest);
             const piiData = await piiRes.json();
             
-            if (piiData.status === 200 && piiData.data && piiData.data.length > 0) {
-              const userData = piiData.data[0];
+            if (piiData.status === 200 && piiData.data && piiData.data.data && piiData.data.data.length > 0) {
+              const userData = piiData.data.data[0];
               
               // Fill in profile data with priority to PII endpoint data (override any existing data)
               if (userData.fname && userData.lname) {
