@@ -104,57 +104,257 @@ export class BrandsForLessService extends ApiService {
    * @returns Promise resolving to comprehensive profile data from the final enriched response
    */
   static async fetchCustomerProfile(customerId: string, token: string): Promise<any> {
-    const requests = [
-      // 1. Basic customer info
-      {
-        url: `https://api.brandsforlessuae.com/customer/api/v1/list?limit=1&offset=0&customerId=${customerId}`,
-        method: 'POST' as const,
-        token,
-        headers: this.BASE_HEADERS
-      },
-      // 2. Customer addresses
-      {
+    // This function maintains ALL the original functionality and structure
+    
+    // Initialize profile object - this matches the original structure exactly
+    const profile: any = {
+      customerId,
+      fullName: "",
+      addresses: [],
+      phoneNumber: "",
+      email: "",
+      latestOrders: [],
+      totalPurchasesAmount: 0,
+      totalOrdersCount: 0,
+      fetchedAt: new Date().toISOString(),
+    };
+
+    // Step 1: Fetch customer address/profile info (ORIGINAL IMPLEMENTATION)
+    try {
+      const addressRequest: ApiRequest = {
         url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${customerId}`,
-        method: 'POST' as const,
-        token,
-        headers: this.BASE_HEADERS
-      },
-      // 3. Customer orders (shipment endpoint for rich data)
-      {
-        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=1000`,
-        method: 'GET' as const,
-        token,
-        headers: this.BASE_HEADERS
-      },
-      // 4. PII/User data (final enriched endpoint)
-      {
-        url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId=${customerId}`,
-        method: 'GET' as const,
-        token,
-        headers: this.BASE_HEADERS
-      }
-    ];
-
-    let lastResponse = null;
-
-    // Execute requests sequentially to build up the data progressively
-    for (let i = 0; i < requests.length; i++) {
-      try {
-        const response = await this.makeRequest(requests[i]);
-        lastResponse = response;
+        method: "GET",
+        token: token.trim(),
+      };
+      
+      const addressData = await this.makeRequest(addressRequest);
+      
+      if (addressData.status === 200 && addressData.data) {
+        // Handle both array and object response formats
+        const customerDataArray = Array.isArray(addressData.data) ? addressData.data : addressData.data.data || [addressData.data];
+        const customerData = customerDataArray.length > 0 ? customerDataArray[0] : {};
         
-        // Small delay between requests to prevent overwhelming the API
-        if (i < requests.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 50));
+        // Extract basic profile info from the actual API structure
+        // Check if user is a guest and skip
+        if (customerData.guest === 1 || customerData.isGuest === true || customerData.guest === "1") {
+          throw new Error(`Customer ${customerId} is a guest user - skipping profile collection`);
+        }
+        
+        // Extract name properly from firstname + lastname fields (address data uses lowercase)
+        const fullName = customerData.fullName || customerData.name || `${customerData.firstname || customerData.firstName || ''} ${customerData.lastname || customerData.lastName || ''}`.trim();
+        // Only set name from address data if we actually found a valid name
+        if (fullName && fullName !== "") {
+          profile.fullName = fullName;
+        }
+        profile.addresses = customerDataArray || [];
+        
+        // Extract phone number from various possible fields
+        profile.phoneNumber = customerData.phone || customerData.phoneNumber || customerData.mobile || customerData.mobileNumber || "";
+        
+        // Extract email from various possible fields
+        profile.email = customerData.email || customerData.emailAddress || "";
+        
+        profile.birthDate = customerData.birthDate || customerData.dateOfBirth || customerData.dob || undefined;
+        profile.gender = customerData.gender || undefined;
+        profile.registerDate = customerData.registerDate || customerData.createdAt || customerData.registrationDate || undefined;
+      }
+    } catch (error) {
+      console.warn("Failed to fetch address info:", error);
+    }
+
+    // Step 2: Fetch customer orders (ORIGINAL IMPLEMENTATION)
+    try {
+      const ordersRequest: ApiRequest = {
+        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=1000`,
+        method: "GET",
+        token: token.trim(),
+      };
+      
+      const ordersData = await this.makeRequest(ordersRequest);
+      
+      if (ordersData.status === 200 && ordersData.data) {
+        // Handle different response structures
+        let orders = [];
+        if (Array.isArray(ordersData.data)) {
+          orders = ordersData.data;
+        } else if (ordersData.data.data && Array.isArray(ordersData.data.data)) {
+          orders = ordersData.data.data;
+        } else if (ordersData.data.orders && Array.isArray(ordersData.data.orders)) {
+          orders = ordersData.data.orders;
+        }
+        
+        // Sort by date and take latest orders
+        const sortedOrders = orders.sort((a: any, b: any) => {
+          const dateA = new Date(a.createdAt || a.orderDate || a.date || a.createdTime || 0).getTime();
+          const dateB = new Date(b.createdAt || b.orderDate || b.date || b.createdTime || 0).getTime();
+          return dateB - dateA;
+        });
+        
+        // Calculate total purchases amount from ALL orders
+        const totalAmount = orders.reduce((total: number, order: any) => {
+          const orderAmount = parseFloat(
+            order.subtotal ||
+            order.subTotal ||
+            order.transactionPrice || 
+            order.totalAmount || 
+            order.amount || 
+            order.value || 
+            order.price || 
+            order.orderTotal || 
+            order.grandTotal || 
+            0
+          );
+          return total + orderAmount;
+        }, 0);
+        
+        profile.totalPurchasesAmount = totalAmount;
+        profile.totalOrdersCount = orders.length;
+        
+        // Process latest 5 orders for display with invoice URLs
+        const latestOrdersForDisplay = sortedOrders.slice(0, 5);
+        const BATCH_SIZE = 5;
+        
+        let latestOrdersWithUrls: any[] = [];
+        
+        // Process orders in batches
+        for (let i = 0; i < latestOrdersForDisplay.length; i += BATCH_SIZE) {
+          const batch = latestOrdersForDisplay.slice(i, i + BATCH_SIZE);
+          
+          const batchPromises = batch.map(async (order: any) => {
+            try {
+              const orderId = order.orderId || order.id;
+              if (!orderId) {
+                return {
+                  ...order,
+                  invoiceUrl: null,
+                  orderStatus: order.status || order.orderStatus || 'Unknown'
+                };
+              }
+              
+              const orderDetailsRequest: ApiRequest = {
+                url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+                method: "GET",
+                token: token.trim(),
+              };
+              
+              const orderDetailsData = await this.makeRequest(orderDetailsRequest);
+              
+              if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
+                const orderData = orderDetailsData.data.data;
+                const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
+                                 orderData.receiptUrl || orderData.receipt_url || null;
+                
+                const orderStatus = orderData.orderStatus ||
+                                  orderData.shipmentStatus ||
+                                  orderData.status ||
+                                  orderData.orderState ||
+                                  orderData.deliveryStatus ||
+                                  order.status ||
+                                  order.orderStatus ||
+                                  'Unknown';
+                
+                return {
+                  ...order,
+                  invoiceUrl: invoiceUrl,
+                  orderStatus: orderStatus,
+                  enrichedData: orderData
+                };
+              } else {
+                return {
+                  ...order,
+                  invoiceUrl: null,
+                  orderStatus: order.status || order.orderStatus || 'Unknown'
+                };
+              }
+            } catch (error) {
+              console.warn(`Failed to fetch order details for order ${order.orderId || order.id}:`, error);
+              return {
+                ...order,
+                invoiceUrl: null,
+                orderStatus: order.status || order.orderStatus || 'Error'
+              };
+            }
+          });
+          
+          const batchResults = await Promise.all(batchPromises);
+          latestOrdersWithUrls.push(...batchResults);
+          
+          // Delay between batches
+          if (i + BATCH_SIZE < latestOrdersForDisplay.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        
+        profile.latestOrders = latestOrdersWithUrls;
+      }
+    } catch (error) {
+      console.warn("Failed to fetch orders:", error);
+    }
+
+    // Step 3: Try to get more profile data if name is still missing
+    if (!profile.fullName || profile.fullName === "") {
+      try {
+        const userRequest: ApiRequest = {
+          url: `https://api.brandsforlessuae.com/customer/api/v1/user?customerId=${customerId}`,
+          method: "GET",
+          token: token.trim(),
+        };
+        
+        const userData = await this.makeRequest(userRequest);
+        
+        if (userData.status === 200 && userData.data && userData.data.data && userData.data.data.length > 0) {
+          const user = userData.data.data[0];
+          const fullName = `${user.fname || ''} ${user.lname || ''}`.trim();
+          if (fullName && fullName !== "") {
+            profile.fullName = fullName;
+          }
+          
+          if (!profile.phoneNumber && user.mobile) {
+            profile.phoneNumber = user.mobile;
+          }
+          if (!profile.email && user.email) {
+            profile.email = user.email;
+          }
         }
       } catch (error) {
-        console.error(`Request ${i + 1} failed for customer ${customerId}:`, error);
-        // Continue to next request even if one fails
+        console.warn("Failed to fetch user info:", error);
       }
     }
 
-    // Return the final response which should have the richest data
-    return lastResponse;
+    // Step 4: Try to fetch PII data for additional information
+    try {
+      const piiRequest: ApiRequest = {
+        url: `https://api.brandsforlessuae.com/customer/api/v1/pii?customerId=${customerId}`,
+        method: "GET",
+        token: token.trim(),
+      };
+      
+      const piiData = await this.makeRequest(piiRequest);
+      
+      if (piiData.status === 200 && piiData.data && piiData.data.data && piiData.data.data.data && piiData.data.data.data.length > 0) {
+        const userPiiData = piiData.data.data.data[0];
+        
+        if (!profile.birthDate && userPiiData.birthday) {
+          profile.birthDate = userPiiData.birthday;
+        }
+        if (!profile.gender && userPiiData.gender) {
+          profile.gender = userPiiData.gender;
+        }
+        if (!profile.registerDate && userPiiData.regDate) {
+          profile.registerDate = userPiiData.regDate;
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to fetch PII data:", error);
+    }
+
+    // Final validation
+    if (!profile.fullName || profile.fullName.trim() === "") {
+      profile.fullName = "Unknown Customer";
+    }
+
+    // Return the complete profile data directly (not wrapped in a response structure)
+    return profile;
   }
 
   /**

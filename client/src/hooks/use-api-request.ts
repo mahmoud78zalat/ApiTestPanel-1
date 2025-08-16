@@ -74,30 +74,27 @@ export const useApiRequest = () => {
    */
   const profileFetchMutation = useMutation({
     mutationFn: async (customerId: string): Promise<CustomerProfile> => {
-      const finalResponse = await BrandsForLessService.fetchCustomerProfile(customerId, token);
+      const profileData = await BrandsForLessService.fetchCustomerProfile(customerId, token);
       
-      if (!finalResponse || !finalResponse.data) {
+      if (!profileData) {
         throw new Error('No profile data returned from API');
       }
 
-      // The final response should contain the enriched customer data
-      // Extract profile data from the final enriched response
-      const responseData = finalResponse.data;
-      
+      // The BrandsForLessService now returns the complete profile directly
+      // No need for complex extraction - just ensure it has the required fields
       const profile: CustomerProfile = {
-        customerId,
-        fullName: extractFullNameFromFinal(responseData),
-        addresses: extractAddressesFromFinal(responseData),
-        birthDate: extractBirthDateFromFinal(responseData),
-        phoneNumber: extractPhoneNumberFromFinal(responseData),
-        email: extractEmailFromFinal(responseData),
-        latestOrders: extractOrdersFromFinal(responseData),
-        gender: extractGenderFromFinal(responseData),
-        registerDate: extractRegisterDateFromFinal(responseData),
-        totalPurchasesAmount: calculateTotalPurchasesFromFinal(responseData),
-        totalOrdersCount: countTotalOrdersFromFinal(responseData),
-        fetchedAt: getCurrentTimestamp(),
-        rawData: responseData // Keep raw data for debugging
+        customerId: profileData.customerId || customerId,
+        fullName: profileData.fullName || "Unknown Customer",
+        addresses: profileData.addresses || [],
+        birthDate: profileData.birthDate,
+        phoneNumber: profileData.phoneNumber || "",
+        email: profileData.email || "",
+        latestOrders: profileData.latestOrders || [],
+        gender: profileData.gender,
+        registerDate: profileData.registerDate,
+        totalPurchasesAmount: profileData.totalPurchasesAmount || 0,
+        totalOrdersCount: profileData.totalOrdersCount || 0,
+        fetchedAt: profileData.fetchedAt || getCurrentTimestamp(),
       };
 
       return profile;
@@ -186,81 +183,7 @@ export const useApiRequest = () => {
   };
 };
 
-// Helper functions to extract data from final enriched API response
-function extractFullNameFromFinal(responseData: any): string {
-  // Try multiple possible paths based on the final response structure
-  if (responseData?.data?.data?.length) {
-    const user = responseData.data.data[0];
-    return `${user.fname || ''} ${user.lname || ''}`.trim() || "Unknown";
-  }
-  if (responseData?.data?.length) {
-    const user = responseData.data[0];
-    return `${user.fname || ''} ${user.lname || ''}`.trim() || "Unknown";
-  }
-  return responseData?.fullName || responseData?.name || "Unknown";
-}
-
-function extractAddressesFromFinal(responseData: any): any[] {
-  // Look for addresses in various possible locations
-  const addresses = responseData?.addresses || responseData?.data?.addresses || responseData?.address || [];
-  if (Array.isArray(addresses)) {
-    return addresses.map((addr: any) => ({
-      address: addr.address || addr.fullAddress,
-      city: addr.city,
-      country: addr.country
-    }));
-  }
-  return [];
-}
-
-function extractBirthDateFromFinal(responseData: any): string | undefined {
-  return responseData?.birthday || responseData?.birthDate || 
-         responseData?.data?.birthday || responseData?.data?.birthDate;
-}
-
-function extractPhoneNumberFromFinal(responseData: any): string | undefined {
-  return responseData?.mobile || responseData?.phone || responseData?.phoneNumber ||
-         responseData?.data?.mobile || responseData?.data?.phone;
-}
-
-function extractEmailFromFinal(responseData: any): string | undefined {
-  return responseData?.email || responseData?.data?.email;
-}
-
-function extractOrdersFromFinal(responseData: any): any[] {
-  const orders = responseData?.orders || responseData?.latestOrders || 
-                responseData?.data?.orders || responseData?.orderHistory || [];
-  if (Array.isArray(orders)) {
-    return orders.slice(0, 10); // Keep last 10 orders
-  }
-  return [];
-}
-
-function extractGenderFromFinal(responseData: any): string | undefined {
-  return responseData?.gender || responseData?.data?.gender;
-}
-
-function extractRegisterDateFromFinal(responseData: any): string | undefined {
-  return responseData?.regDate || responseData?.registerDate || 
-         responseData?.registrationDate || responseData?.data?.regDate;
-}
-
-function calculateTotalPurchasesFromFinal(responseData: any): number {
-  const orders = responseData?.orders || responseData?.latestOrders || 
-                responseData?.data?.orders || responseData?.orderHistory || [];
-  if (Array.isArray(orders)) {
-    return orders.reduce((sum: number, order: any) => {
-      return sum + (parseFloat(order.totalAmount) || 0);
-    }, 0);
-  }
-  return responseData?.totalPurchaseAmount || responseData?.totalAmount || 0;
-}
-
-function countTotalOrdersFromFinal(responseData: any): number {
-  const orders = responseData?.orders || responseData?.latestOrders || 
-                responseData?.data?.orders || responseData?.orderHistory || [];
-  if (Array.isArray(orders)) {
-    return orders.length;
-  }
-  return responseData?.totalOrders || responseData?.orderCount || 0;
+// Helper function for timestamp generation
+function getCurrentTimestamp(): string {
+  return new Date().toISOString();
 }
