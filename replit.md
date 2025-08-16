@@ -54,7 +54,8 @@ The application uses a monorepo structure with shared TypeScript schemas between
   - Profile fetching now prioritizes PII endpoint data as the most reliable source for customer information
   - Enhanced both single profile fetch and bulk processing modes to include the new PII data step
   - Improved data extraction logic to handle the specific response format (fname/lname, birthday, regDate, gender)
-  - Added comprehensive debug logging for the new PII endpoint to track data retrieval success
+  - **Fixed PII Endpoint Data Access**: Corrected nested JSON response structure access from `piiData.data[0]` to `piiData.data.data[0]`
+  - Successfully resolved birthday, register date, and gender extraction from PII endpoint
   - Fallback search endpoint remains as backup option if PII fetch fails or has missing data
 - **Fixed Console Flooding**: Removed excessive console logging that was causing performance issues and console flooding during API requests
 - **Enhanced Export Currency Display**: Updated both CSV and TXT export functions to include proper currency symbols with all monetary amounts
