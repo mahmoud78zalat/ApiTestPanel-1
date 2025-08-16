@@ -71,6 +71,14 @@ The application uses a monorepo structure with shared TypeScript schemas between
   - TXT exports feature organized "PERSONAL INFO" section with birthday, gender, and registration date
   - Data comes from the integrated PII endpoint for comprehensive customer information
   - All export formats maintain proper organization and readability
+- **Enhanced Profile Details Display**: Added birthday, gender, and registration date fields to the Customer Profile Details dialog
+  - Profile details now show complete personal information from PII endpoint
+  - Fields are positioned logically in the existing 2-column grid layout
+  - Displays "Not available" when data is missing for proper user feedback
+- **Updated Cancel Order Configuration**: Modified cancel order payload values for both normal and bulk operations
+  - Changed `createdBy` from 1405 to 2457
+  - Changed `assignee` from 92 to 105
+  - Updates apply to both single order cancellation and bulk processing modes
 
 ## August 14, 2025
 - Extended HTTP method support to include HEAD, OPTIONS, TRACE, and CONNECT methods
