@@ -980,6 +980,12 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         fetchedAt: new Date().toISOString(),
       };
 
+      addDebugLog('info', 'Profile Initialization', {
+        customerId: customerId,
+        initialProfile: profile,
+        message: 'Starting profile fetch process'
+      });
+
       // Step 1: Fetch customer address/profile info
       try {
         const addressRequest: ApiRequest = {
@@ -1423,11 +1429,14 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
             }
           });
           
-          // Fill in profile data with priority to PII endpoint data
-          if (userData.fname && userData.lname && !profile.fullName) {
+          // Fill in profile data with priority to PII endpoint data (override any existing data)
+          if (userData.fname && userData.lname) {
             profile.fullName = `${userData.fname} ${userData.lname}`;
-          } else if (userData.name && !profile.fullName) {
+          } else if (userData.name) {
             profile.fullName = userData.name;
+          } else if (!profile.fullName && (userData.fname || userData.lname)) {
+            // Fallback: use whatever name parts are available
+            profile.fullName = `${userData.fname || ''} ${userData.lname || ''}`.trim();
           }
           
           // Extract email if not found before
@@ -1499,18 +1508,52 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         }
       }
 
+      // Enhanced debugging before skip check
+      addDebugLog('info', 'Pre-Skip Check - Profile Name Analysis', {
+        customerId: profile.customerId,
+        fullName: profile.fullName,
+        fullNameType: typeof profile.fullName,
+        fullNameLength: profile.fullName ? profile.fullName.length : 0,
+        isUndefined: profile.fullName === undefined,
+        isNull: profile.fullName === null,
+        isEmpty: profile.fullName === "",
+        isUnknown: profile.fullName === "Unknown",
+        trimmedLength: profile.fullName ? profile.fullName.trim().length : 0,
+        allProfileData: {
+          email: profile.email,
+          phoneNumber: profile.phoneNumber,
+          birthDate: profile.birthDate,
+          gender: profile.gender,
+          registerDate: profile.registerDate,
+          addresses: profile.addresses ? profile.addresses.length : 0
+        }
+      });
+
       // Skip profiles with Unknown fullName or errors
       if (!profile.fullName || profile.fullName === "Unknown" || profile.fullName.trim() === "") {
-        addDebugLog('info', 'Skipping Profile - Invalid Name', {
+        addDebugLog('error', 'SKIPPING PROFILE - Invalid Name', {
           customerId: profile.customerId,
           fullName: profile.fullName,
-          reason: 'Full name is Unknown or empty'
+          reason: 'Full name is Unknown, empty, or missing',
+          skipConditions: {
+            isNullOrUndefined: !profile.fullName,
+            isUnknown: profile.fullName === "Unknown",
+            isTrimmedEmpty: profile.fullName ? profile.fullName.trim() === "" : true
+          }
         });
         
         const skipResponse: ApiResponse = {
           status: 200,
           statusText: 'Skipped - Invalid Profile',
-          data: { message: 'Profile skipped due to unknown or missing name' },
+          data: { 
+            message: 'Profile skipped due to unknown or missing name',
+            customerId: profile.customerId,
+            debugInfo: {
+              fullName: profile.fullName,
+              email: profile.email,
+              phoneNumber: profile.phoneNumber
+            }
+          },
           headers: { "content-type": "application/json" },
           responseTime: 100,
           size: 50,
@@ -2230,11 +2273,14 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
             if (piiData.status === 200 && piiData.data && piiData.data.length > 0) {
               const userData = piiData.data[0];
               
-              // Fill in profile data with priority to PII endpoint data
-              if (userData.fname && userData.lname && !profile.fullName) {
+              // Fill in profile data with priority to PII endpoint data (override any existing data)
+              if (userData.fname && userData.lname) {
                 profile.fullName = `${userData.fname} ${userData.lname}`;
-              } else if (userData.name && !profile.fullName) {
+              } else if (userData.name) {
                 profile.fullName = userData.name;
+              } else if (!profile.fullName && (userData.fname || userData.lname)) {
+                // Fallback: use whatever name parts are available
+                profile.fullName = `${userData.fname || ''} ${userData.lname || ''}`.trim();
               }
               
               // Extract email if not found before
