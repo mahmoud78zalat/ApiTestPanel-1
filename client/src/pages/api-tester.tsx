@@ -1453,9 +1453,28 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           }
           
           // Always update these fields from PII endpoint as it's the authoritative source
-          profile.birthDate = userData.birthday || profile.birthDate;
-          profile.gender = userData.gender || profile.gender;
-          profile.registerDate = userData.regDate || profile.registerDate;
+          if (userData.birthday) profile.birthDate = userData.birthday;
+          if (userData.gender) profile.gender = userData.gender;
+          if (userData.regDate) profile.registerDate = userData.regDate;
+
+          addDebugLog('info', 'PII Data Assignment Details', {
+            customerId: profile.customerId,
+            piiDataReceived: {
+              birthday: userData.birthday,
+              gender: userData.gender,
+              regDate: userData.regDate
+            },
+            profileAfterAssignment: {
+              birthDate: profile.birthDate,
+              gender: profile.gender,
+              registerDate: profile.registerDate
+            },
+            assignmentResults: {
+              birthdayAssigned: !!userData.birthday,
+              genderAssigned: !!userData.gender,
+              regDateAssigned: !!userData.regDate
+            }
+          });
           
           addDebugLog('info', 'Profile Updated with PII Data', {
             customerId: profile.customerId,
@@ -2310,9 +2329,9 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               }
               
               // Always update these fields from PII endpoint as it's the authoritative source
-              profile.birthDate = userData.birthday || profile.birthDate;
-              profile.gender = userData.gender || profile.gender;
-              profile.registerDate = userData.regDate || profile.registerDate;
+              if (userData.birthday) profile.birthDate = userData.birthday;
+              if (userData.gender) profile.gender = userData.gender;
+              if (userData.regDate) profile.registerDate = userData.regDate;
             }
           } catch (error) {
             console.warn(`Failed to fetch full PII data for ${actualCustomerId}:`, error);
