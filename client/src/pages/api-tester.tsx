@@ -606,15 +606,39 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
   };
 
   const parseCSVContent = (content: string): CustomerProfile[] => {
-    const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('"==='));
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    console.log('Parsing CSV content:', content.substring(0, 500) + '...');
     
+    // Parse CSV properly handling quoted values and complex format
+    const lines = content.split('\n').filter(line => line.trim());
     const profiles: CustomerProfile[] = [];
     
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+    // Find the header line
+    let headerLineIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('Customer ID') || lines[i].includes('customerid') || lines[i].includes('customerId')) {
+        headerLineIndex = i;
+        break;
+      }
+    }
+    
+    console.log('Found header at line:', headerLineIndex);
+    
+    for (let i = headerLineIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
       
-      if (values.length < 4) continue; // Skip invalid rows
+      // Skip empty lines and country section headers
+      if (!line || line.startsWith('"===') || line.includes('CUSTOMERS (')) {
+        continue;
+      }
+      
+      // Parse CSV line handling quoted values
+      const values = parseCSVLine(line);
+      console.log('Parsed values for line', i, ':', values);
+      
+      // Need at least customer ID to create a profile
+      if (values.length === 0 || !values[0] || values[0].trim() === '') {
+        continue;
+      }
       
       const profile: CustomerProfile = {
         customerId: values[0] || '',
@@ -623,39 +647,100 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         phoneNumber: values[3] || '',
         totalOrdersCount: parseInt(values[4]) || 0,
         totalPurchasesAmount: parseFloat(values[5]) || 0,
-        addresses: values[7] ? [{
+        addresses: values[7] && values[7].trim() ? [{
           addressLine1: values[7],
           city: values[8] || '',
           country: values[9] || '',
           default: 'Y',
           firstname: values[1]?.split(' ')[0] || '',
-          lastname: values[1]?.split(' ').slice(1).join(' ') || ''
+          lastname: values[1]?.split(' ').slice(1).join(' ') || '',
+          phone: values[3] || '',
+          addressId: Math.random() * 1000000,
+          zipcode: null,
+          area: '',
+          cityId: '',
+          countryId: 0,
+          areaId: 0,
+          collectionPointId: '',
+          deliveryType: 'DELIVERY_ADDRESS',
+          isMobileVerified: true
         }] : [],
         latestOrders: [],
         fetchedAt: new Date().toISOString()
       };
       
+      console.log('Created profile:', profile);
       profiles.push(profile);
     }
     
+    console.log('Total profiles parsed:', profiles.length);
     return profiles;
   };
 
-  const parseTXTContent = (content: string): CustomerProfile[] => {
-    const profiles: CustomerProfile[] = [];
-    const customerBlocks = content.split('Customer ').filter(block => block.trim());
+  // Helper function to parse CSV line with proper quote handling
+  const parseCSVLine = (line: string): string[] => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
     
-    customerBlocks.forEach(block => {
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        // Handle escaped quotes
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++; // Skip next quote
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    // Add the last field
+    result.push(current.trim());
+    
+    return result;
+  };
+
+  const parseTXTContent = (content: string): CustomerProfile[] => {
+    console.log('Parsing TXT content:', content.substring(0, 500) + '...');
+    
+    const profiles: CustomerProfile[] = [];
+    
+    // Split by customer sections - handle the exported format
+    const customerBlocks = content.split(/Customer \d+:|(?=Customer \d+:)/i).filter(block => block.trim());
+    
+    customerBlocks.forEach((block, index) => {
+      console.log(`Processing block ${index}:`, block.substring(0, 200) + '...');
+      
       const lines = block.split('\n').map(line => line.trim()).filter(line => line);
       if (lines.length < 3) return;
       
-      // Extract basic info from the first few lines
-      const customerIdMatch = block.match(/Customer ID:\s*(.+)/);
-      const nameMatch = block.match(/Name:\s*(.+)/);
-      const emailMatch = block.match(/Email:\s*(.+)/);
-      const phoneMatch = block.match(/Phone:\s*(.+)/);
-      const ordersMatch = block.match(/Total Orders:\s*(\d+)/);
-      const spentMatch = block.match(/Total Spent:\s*[\w\s]*?([\d.]+)/);
+      // Extract info with more flexible patterns
+      const customerIdMatch = block.match(/(?:Customer ID|ID):\s*(.+?)(?:\n|$)/i);
+      const nameMatch = block.match(/(?:Name|Full Name):\s*(.+?)(?:\n|$)/i);
+      const emailMatch = block.match(/(?:Email):\s*(.+?)(?:\n|$)/i);
+      const phoneMatch = block.match(/(?:Phone|Mobile):\s*(.+?)(?:\n|$)/i);
+      const ordersMatch = block.match(/(?:Total Orders|Orders):\s*(\d+)/i);
+      const spentMatch = block.match(/(?:Total Spent|Spent):\s*(?:AED\s*)?[\$]?([\d,.]+)/i);
+      const addressMatch = block.match(/(?:Address|Primary Address):\s*(.+?)(?:\n|$)/i);
+      const cityMatch = block.match(/(?:City):\s*(.+?)(?:\n|$)/i);
+      const countryMatch = block.match(/(?:Country):\s*(.+?)(?:\n|$)/i);
+      
+      console.log('Extracted matches:', {
+        customerId: customerIdMatch?.[1],
+        name: nameMatch?.[1],
+        email: emailMatch?.[1],
+        phone: phoneMatch?.[1],
+        orders: ordersMatch?.[1],
+        spent: spentMatch?.[1]
+      });
       
       if (customerIdMatch && nameMatch) {
         const profile: CustomerProfile = {
@@ -664,16 +749,35 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           email: emailMatch ? emailMatch[1].trim() : '',
           phoneNumber: phoneMatch ? phoneMatch[1].trim() : '',
           totalOrdersCount: ordersMatch ? parseInt(ordersMatch[1]) : 0,
-          totalPurchasesAmount: spentMatch ? parseFloat(spentMatch[1]) : 0,
-          addresses: [],
+          totalPurchasesAmount: spentMatch ? parseFloat(spentMatch[1].replace(/,/g, '')) : 0,
+          addresses: addressMatch ? [{
+            addressLine1: addressMatch[1].trim(),
+            city: cityMatch ? cityMatch[1].trim() : '',
+            country: countryMatch ? countryMatch[1].trim() : '',
+            default: 'Y',
+            firstname: nameMatch[1].split(' ')[0] || '',
+            lastname: nameMatch[1].split(' ').slice(1).join(' ') || '',
+            phone: phoneMatch ? phoneMatch[1].trim() : '',
+            addressId: Math.random() * 1000000,
+            zipcode: null,
+            area: '',
+            cityId: '',
+            countryId: 0,
+            areaId: 0,
+            collectionPointId: '',
+            deliveryType: 'DELIVERY_ADDRESS',
+            isMobileVerified: true
+          }] : [],
           latestOrders: [],
           fetchedAt: new Date().toISOString()
         };
         
+        console.log('Created profile from TXT:', profile);
         profiles.push(profile);
       }
     });
     
+    console.log('Total TXT profiles parsed:', profiles.length);
     return profiles;
   };
 
@@ -688,6 +792,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
     }
 
     try {
+      console.log('Starting file upload for:', uploadFile.name, 'Format:', uploadFormat);
+      
       toast({
         title: "Processing file...",
         description: "Parsing uploaded customer data",
@@ -695,10 +801,37 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
 
       const uploadedProfiles = await parseUploadedFile(uploadFile);
       
+      console.log('Parsed profiles result:', uploadedProfiles);
+      
       if (uploadedProfiles.length === 0) {
+        // Provide more specific error information
+        const fileContent = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsText(uploadFile);
+        });
+        
+        console.log('File content preview:', fileContent.substring(0, 1000));
+        
+        let errorDescription = "The uploaded file doesn't contain valid customer data. ";
+        
+        if (uploadFormat === 'csv') {
+          if (!fileContent.includes('Customer ID') && !fileContent.includes('customerId')) {
+            errorDescription += "Make sure the CSV has a 'Customer ID' column header.";
+          } else {
+            errorDescription += "Check that data rows contain customer information with at least Customer ID and Name.";
+          }
+        } else {
+          if (!fileContent.includes('Customer ID:') && !fileContent.includes('Customer ')) {
+            errorDescription += "Make sure the TXT file contains 'Customer ID:' fields or 'Customer X:' section headers.";
+          } else {
+            errorDescription += "Check that customer sections contain 'Customer ID:' and 'Name:' fields.";
+          }
+        }
+        
         toast({
           title: "No valid data found",
-          description: "The uploaded file doesn't contain valid customer data",
+          description: errorDescription,
           variant: "destructive",
         });
         return;
@@ -724,7 +857,7 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
       console.error('Upload error:', error);
       toast({
         title: "Upload failed",
-        description: error.message || "Failed to process the uploaded file",
+        description: error.message || "Failed to process the uploaded file. Check the file format and try again.",
         variant: "destructive",
       });
     }
