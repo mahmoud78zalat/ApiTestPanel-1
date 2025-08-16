@@ -35,6 +35,8 @@ import {
   Eye,
   Download,
   FileText as FileTextIcon,
+  Upload,
+  Plus,
 } from "lucide-react";
 
 // Predefined API endpoints with dynamic parameters
@@ -226,6 +228,9 @@ export default function ApiTester() {
   
   // Persistent storage for collected customer profiles
   const [collectedProfiles, setCollectedProfiles] = useState<CustomerProfile[]>([]);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFormat, setUploadFormat] = useState<'csv' | 'txt'>('csv');
   
   // Debug logging state
   const [debugLogs, setDebugLogs] = useState<Array<{
@@ -571,6 +576,158 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
       title: "Export successful",
       description: `Exported ${collectedProfiles.length} customer profiles to TXT`,
     });
+  };
+
+  // File upload parsing functions
+  const parseUploadedFile = async (file: File): Promise<CustomerProfile[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          let parsedProfiles: CustomerProfile[] = [];
+          
+          if (uploadFormat === 'csv') {
+            parsedProfiles = parseCSVContent(content);
+          } else {
+            parsedProfiles = parseTXTContent(content);
+          }
+          
+          resolve(parsedProfiles);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  };
+
+  const parseCSVContent = (content: string): CustomerProfile[] => {
+    const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('"==='));
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    
+    const profiles: CustomerProfile[] = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+      
+      if (values.length < 4) continue; // Skip invalid rows
+      
+      const profile: CustomerProfile = {
+        customerId: values[0] || '',
+        fullName: values[1] || '',
+        email: values[2] || '',
+        phoneNumber: values[3] || '',
+        totalOrdersCount: parseInt(values[4]) || 0,
+        totalPurchasesAmount: parseFloat(values[5]) || 0,
+        addresses: values[7] ? [{
+          addressLine1: values[7],
+          city: values[8] || '',
+          country: values[9] || '',
+          default: 'Y',
+          firstname: values[1]?.split(' ')[0] || '',
+          lastname: values[1]?.split(' ').slice(1).join(' ') || ''
+        }] : [],
+        latestOrders: [],
+        fetchedAt: new Date().toISOString()
+      };
+      
+      profiles.push(profile);
+    }
+    
+    return profiles;
+  };
+
+  const parseTXTContent = (content: string): CustomerProfile[] => {
+    const profiles: CustomerProfile[] = [];
+    const customerBlocks = content.split('Customer ').filter(block => block.trim());
+    
+    customerBlocks.forEach(block => {
+      const lines = block.split('\n').map(line => line.trim()).filter(line => line);
+      if (lines.length < 3) return;
+      
+      // Extract basic info from the first few lines
+      const customerIdMatch = block.match(/Customer ID:\s*(.+)/);
+      const nameMatch = block.match(/Name:\s*(.+)/);
+      const emailMatch = block.match(/Email:\s*(.+)/);
+      const phoneMatch = block.match(/Phone:\s*(.+)/);
+      const ordersMatch = block.match(/Total Orders:\s*(\d+)/);
+      const spentMatch = block.match(/Total Spent:\s*[\w\s]*?([\d.]+)/);
+      
+      if (customerIdMatch && nameMatch) {
+        const profile: CustomerProfile = {
+          customerId: customerIdMatch[1].trim(),
+          fullName: nameMatch[1].trim(),
+          email: emailMatch ? emailMatch[1].trim() : '',
+          phoneNumber: phoneMatch ? phoneMatch[1].trim() : '',
+          totalOrdersCount: ordersMatch ? parseInt(ordersMatch[1]) : 0,
+          totalPurchasesAmount: spentMatch ? parseFloat(spentMatch[1]) : 0,
+          addresses: [],
+          latestOrders: [],
+          fetchedAt: new Date().toISOString()
+        };
+        
+        profiles.push(profile);
+      }
+    });
+    
+    return profiles;
+  };
+
+  const handleFileUpload = async () => {
+    if (!uploadFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: "Processing file...",
+        description: "Parsing uploaded customer data",
+      });
+
+      const uploadedProfiles = await parseUploadedFile(uploadFile);
+      
+      if (uploadedProfiles.length === 0) {
+        toast({
+          title: "No valid data found",
+          description: "The uploaded file doesn't contain valid customer data",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Merge with existing profiles (avoid duplicates)
+      const existingIds = new Set(collectedProfiles.map(p => p.customerId));
+      const newProfiles = uploadedProfiles.filter(p => !existingIds.has(p.customerId));
+      const duplicateCount = uploadedProfiles.length - newProfiles.length;
+
+      setCollectedProfiles(prev => [...prev, ...newProfiles]);
+
+      toast({
+        title: "Upload successful",
+        description: `Added ${newProfiles.length} new profiles${duplicateCount > 0 ? `, skipped ${duplicateCount} duplicates` : ''}`,
+      });
+
+      // Reset upload state
+      setShowUploadDialog(false);
+      setUploadFile(null);
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to process the uploaded file",
+        variant: "destructive",
+      });
+    }
   };
 
   // Helper function to detect if input is an order ID 
@@ -2867,6 +3024,31 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               )}
             </Card>
 
+            {/* Customer Data Upload Section */}
+            <Card className="mt-6">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-green-600" />
+                    Import Customer Data
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowUploadDialog(true)}
+                    className="flex items-center gap-1"
+                    data-testid="button-import-data"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Upload File
+                  </Button>
+                </div>
+                <p className="text-sm text-slate-600 mt-2">
+                  Upload CSV or TXT files containing customer data to merge with your existing profiles
+                </p>
+              </CardHeader>
+            </Card>
+
             {/* Collected Profiles Display */}
             {collectedProfiles.length > 0 && (
               <Card className="mt-6">
@@ -2880,6 +3062,16 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                       <Badge className="bg-blue-100 text-blue-800">
                         {collectedProfiles.length} profiles
                       </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowUploadDialog(true)}
+                        className="flex items-center gap-1"
+                        data-testid="button-upload-profiles"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Upload
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -3120,6 +3312,96 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           </div>
         </div>
       </main>
+
+      {/* Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5 text-green-600" />
+              Import Customer Data
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="file-format">File Format</Label>
+              <Select value={uploadFormat} onValueChange={(value: 'csv' | 'txt') => setUploadFormat(value)}>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Select file format" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="csv">CSV File (.csv)</SelectItem>
+                  <SelectItem value="txt">Text File (.txt)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="file-upload">Select File</Label>
+              <Input
+                id="file-upload"
+                type="file"
+                accept={uploadFormat === 'csv' ? '.csv' : '.txt'}
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                className="mt-1"
+                data-testid="input-file-upload"
+              />
+              {uploadFile && (
+                <p className="text-sm text-green-600 mt-2">
+                  Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <h4 className="font-medium text-blue-900 mb-2">Expected Format:</h4>
+              {uploadFormat === 'csv' ? (
+                <div className="text-sm text-blue-800">
+                  <p className="mb-1">CSV with headers:</p>
+                  <code className="text-xs bg-white px-2 py-1 rounded border block">
+                    Customer ID, Full Name, Email, Phone, Orders, Spent, Addresses, Address, City, Country
+                  </code>
+                </div>
+              ) : (
+                <div className="text-sm text-blue-800">
+                  <p className="mb-1">Text format with sections:</p>
+                  <code className="text-xs bg-white px-2 py-1 rounded border block">
+                    Customer 1:<br/>
+                    Customer ID: 123456<br/>
+                    Name: John Doe<br/>
+                    Email: john@email.com<br/>
+                    Phone: 1234567890<br/>
+                    Total Orders: 5<br/>
+                    Total Spent: 500.00
+                  </code>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowUploadDialog(false);
+                  setUploadFile(null);
+                }}
+                data-testid="button-cancel-upload"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleFileUpload}
+                disabled={!uploadFile}
+                className="flex items-center gap-1"
+                data-testid="button-confirm-upload"
+              >
+                <Upload className="w-4 h-4" />
+                Import Data
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
