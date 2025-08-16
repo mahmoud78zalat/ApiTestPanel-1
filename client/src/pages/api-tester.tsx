@@ -1406,19 +1406,40 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
         const piiData = await piiRes.json();
         addDebugLog('response', 'Customer Full PII Response', {
           status: piiData.status,
+          statusText: piiData.statusText,
           dataStructure: typeof piiData.data,
           isArray: Array.isArray(piiData.data),
           dataLength: Array.isArray(piiData.data) ? piiData.data.length : 'Not array',
           sampleUser: Array.isArray(piiData.data) && piiData.data.length > 0 ? piiData.data[0] : piiData.data,
-          COMPLETE_PII_RESPONSE: piiData
+          COMPLETE_PII_RESPONSE: piiData,
+          RAW_JSON_STRING: JSON.stringify(piiData, null, 2)
         }, piiRequest.url);
+
+        console.log('=== PII ENDPOINT DEBUG ===');
+        console.log('URL:', piiRequest.url);
+        console.log('Full Response:', JSON.stringify(piiData, null, 2));
+        console.log('=== END PII DEBUG ===');
         
         if (piiData.status === 200 && piiData.data && piiData.data.length > 0) {
           const userData = piiData.data[0];
           
+          console.log('=== PII DATA EXTRACTION ===');
+          console.log('Raw userData:', JSON.stringify(userData, null, 2));
+          console.log('Available fields:', Object.keys(userData));
+          console.log('fname:', userData.fname);
+          console.log('lname:', userData.lname);
+          console.log('name:', userData.name);
+          console.log('email:', userData.email);
+          console.log('mobile:', userData.mobile);
+          console.log('gender:', userData.gender);
+          console.log('birthday:', userData.birthday);
+          console.log('regDate:', userData.regDate);
+          console.log('=== END PII EXTRACTION ===');
+          
           addDebugLog('info', 'Extracting Full PII Data', {
             originalResponse: piiData,
             userData: userData,
+            availableFields: Object.keys(userData),
             extractedFields: {
               fullName: userData.fname && userData.lname ? `${userData.fname} ${userData.lname}` : userData.name,
               email: userData.email,
@@ -1429,7 +1450,8 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
               points: userData.points,
               memberType: userData.memberType,
               isMobileVerified: userData.isMobileVerified
-            }
+            },
+            RAW_USER_DATA: userData
           });
           
           // Fill in profile data with priority to PII endpoint data (override any existing data)
@@ -1453,9 +1475,37 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
           }
           
           // Always update these fields from PII endpoint as it's the authoritative source
-          if (userData.birthday) profile.birthDate = userData.birthday;
-          if (userData.gender) profile.gender = userData.gender;
-          if (userData.regDate) profile.registerDate = userData.regDate;
+          console.log('=== PROFILE ASSIGNMENT BEFORE ===');
+          console.log('Profile before assignment:', {
+            birthDate: profile.birthDate,
+            gender: profile.gender,
+            registerDate: profile.registerDate
+          });
+          console.log('PII Data to assign:', {
+            birthday: userData.birthday,
+            gender: userData.gender,
+            regDate: userData.regDate
+          });
+
+          if (userData.birthday) {
+            profile.birthDate = userData.birthday;
+            console.log('✓ Assigned birthday:', userData.birthday);
+          }
+          if (userData.gender) {
+            profile.gender = userData.gender;
+            console.log('✓ Assigned gender:', userData.gender);
+          }
+          if (userData.regDate) {
+            profile.registerDate = userData.regDate;
+            console.log('✓ Assigned regDate:', userData.regDate);
+          }
+
+          console.log('Profile after assignment:', {
+            birthDate: profile.birthDate,
+            gender: profile.gender,
+            registerDate: profile.registerDate
+          });
+          console.log('=== END PROFILE ASSIGNMENT ===');
 
           addDebugLog('info', 'PII Data Assignment Details', {
             customerId: profile.customerId,
@@ -1541,6 +1591,20 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
       }
 
       // Enhanced debugging before skip check
+      console.log('=== FINAL PROFILE BEFORE SKIP CHECK ===');
+      console.log('Complete Profile Data:', {
+        customerId: profile.customerId,
+        fullName: profile.fullName,
+        email: profile.email,
+        phoneNumber: profile.phoneNumber,
+        birthDate: profile.birthDate,
+        gender: profile.gender,
+        registerDate: profile.registerDate,
+        addressesCount: profile.addresses ? profile.addresses.length : 0,
+        ordersCount: profile.latestOrders ? profile.latestOrders.length : 0
+      });
+      console.log('=== END FINAL PROFILE ===');
+
       addDebugLog('info', 'Pre-Skip Check - Profile Name Analysis', {
         customerId: profile.customerId,
         fullName: profile.fullName,
