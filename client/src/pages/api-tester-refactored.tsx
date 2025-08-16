@@ -1,0 +1,288 @@
+/**
+ * Refactored API Tester Page
+ * 
+ * This is the completely refactored version of the API tester using modular components
+ * and custom hooks for better maintainability and separation of concerns
+ */
+
+import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+
+// Custom Hooks
+import { useApiRequest } from "@/hooks/use-api-request";
+import { useDebugLogging } from "@/hooks/use-debug-logging";
+import { useBulkProcessing } from "@/hooks/use-bulk-processing";
+import { useProfileCollection } from "@/hooks/use-profile-collection";
+
+// Components
+import { ApiRequestForm } from "@/components/api-request-form";
+import { ApiResponseDisplay } from "@/components/api-response-display";
+import { BulkResultsPanel } from "@/components/bulk-results-panel";
+import { DebugPanel } from "@/components/debug-panel";
+
+// Features
+import { ProfileManagement } from "@/features/profile-management";
+import { UploadDialog } from "@/features/upload-dialog";
+
+// Config and Utils
+import { API_ENDPOINTS } from "@/config/api-endpoints";
+import { constructUrl } from "@/utils/url-utils";
+
+export default function ApiTesterRefactored() {
+  const { toast } = useToast();
+
+  // Core API request functionality
+  const {
+    url,
+    method,
+    token,
+    response,
+    error,
+    selectedEndpoint,
+    parameters,
+    showCustomUrl,
+    setUrl,
+    setMethod,
+    setToken,
+    setSelectedEndpoint,
+    setParameters,
+    setShowCustomUrl,
+    makeRequest,
+    fetchFullProfile,
+    resetForm,
+    updateUrlFromEndpoint,
+    isLoading,
+    isProfileLoading
+  } = useApiRequest();
+
+  // Debug logging
+  const {
+    debugLogs,
+    showDebugPanel,
+    addDebugLog,
+    clearDebugLogs,
+    toggleDebugPanel,
+    setShowDebugPanel
+  } = useDebugLogging();
+
+  // Bulk processing
+  const {
+    bulkMode,
+    bulkInput,
+    bulkResults,
+    setBulkMode,
+    setBulkInput,
+    bulkProcessingMutation,
+    parseBulkInput,
+    clearBulkResults,
+    getBulkSummary
+  } = useBulkProcessing();
+
+  // Profile collection
+  const {
+    collectedProfiles,
+    showUploadDialog,
+    setShowUploadDialog,
+    addProfile,
+    addProfiles,
+    removeProfile,
+    clearProfiles,
+    exportProfiles,
+    importFromFile,
+    getCollectionStats
+  } = useProfileCollection();
+
+  // Update URL when endpoint or parameters change
+  useEffect(() => {
+    updateUrlFromEndpoint();
+  }, [updateUrlFromEndpoint]);
+
+  // Log API responses for debugging
+  useEffect(() => {
+    if (response) {
+      addDebugLog('response', 'API Response Received', response, url, method);
+    }
+  }, [response, url, method, addDebugLog]);
+
+  // Log API errors for debugging
+  useEffect(() => {
+    if (error) {
+      addDebugLog('error', 'API Request Failed', { error }, url, method);
+    }
+  }, [error, url, method, addDebugLog]);
+
+  /**
+   * Handles form submission for both single and bulk requests
+   */
+  const handleSubmit = async () => {
+    if (!bulkMode) {
+      // Single request mode
+      addDebugLog('request', 'Single API Request', { url, method, token }, url, method);
+      
+      const currentEndpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
+      
+      // Handle special "fetch-full-profile" endpoint
+      if (currentEndpoint?.id === 'fetch-full-profile') {
+        const customerId = parameters[currentEndpoint.parameters[0].key];
+        if (!customerId) {
+          toast({
+            title: "Missing Parameter",
+            description: "Customer ID is required for full profile fetch",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        try {
+          const profile = await fetchFullProfile(customerId);
+          addProfile(profile);
+        } catch (error) {
+          console.error('Profile fetch failed:', error);
+        }
+      } else {
+        // Regular single request
+        makeRequest();
+      }
+    } else {
+      // Bulk processing mode
+      const values = parseBulkInput(bulkInput);
+      if (values.length === 0) {
+        toast({
+          title: "No Values to Process",
+          description: "Please enter values for bulk processing",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const currentEndpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
+      if (!currentEndpoint) {
+        toast({
+          title: "No Endpoint Selected",
+          description: "Please select an endpoint for bulk processing",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      addDebugLog('request', 'Bulk Processing Started', { 
+        endpoint: currentEndpoint.name, 
+        valueCount: values.length 
+      });
+
+      // Handle bulk full profile fetching
+      if (currentEndpoint.id === 'fetch-full-profile') {
+        try {
+          const profiles = await Promise.all(
+            values.map(customerId => fetchFullProfile(customerId))
+          );
+          addProfiles(profiles.filter(Boolean)); // Filter out any failed profiles
+        } catch (error) {
+          console.error('Bulk profile fetch failed:', error);
+        }
+      } else {
+        // Regular bulk processing
+        bulkProcessingMutation.mutate({
+          values,
+          endpoint: currentEndpoint,
+          token
+        });
+      }
+    }
+  };
+
+  /**
+   * Handles file upload for importing customer IDs
+   */
+  const handleFileUpload = async (customerIds: string[]) => {
+    if (customerIds.length === 0) return;
+
+    setBulkInput(customerIds.join('\n'));
+    setBulkMode(true);
+    
+    // Auto-select fetch-full-profile endpoint
+    setSelectedEndpoint('fetch-full-profile');
+    
+    toast({
+      title: "IDs Imported",
+      description: `${customerIds.length} customer IDs imported and bulk mode enabled`,
+    });
+  };
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="text-center py-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          API Testing Panel
+        </h1>
+        <p className="text-gray-600">
+          Professional API testing interface for Brands for Less endpoints
+        </p>
+      </div>
+
+      {/* Main API Request Form */}
+      <ApiRequestForm
+        url={url}
+        method={method}
+        token={token}
+        selectedEndpoint={selectedEndpoint}
+        parameters={parameters}
+        showCustomUrl={showCustomUrl}
+        bulkMode={bulkMode}
+        bulkInput={bulkInput}
+        isLoading={isLoading || isProfileLoading || bulkProcessingMutation.isPending}
+        onUrlChange={setUrl}
+        onMethodChange={setMethod}
+        onTokenChange={setToken}
+        onEndpointChange={setSelectedEndpoint}
+        onParametersChange={setParameters}
+        onShowCustomUrlToggle={setShowCustomUrl}
+        onBulkModeToggle={setBulkMode}
+        onBulkInputChange={setBulkInput}
+        onSubmit={handleSubmit}
+        onReset={resetForm}
+      />
+
+      {/* API Response Display */}
+      <ApiResponseDisplay
+        response={response}
+        error={error}
+        isLoading={isLoading}
+      />
+
+      {/* Bulk Processing Results */}
+      {bulkResults.length > 0 && (
+        <BulkResultsPanel
+          results={bulkResults}
+          isProcessing={bulkProcessingMutation.isPending}
+          onClear={clearBulkResults}
+        />
+      )}
+
+      {/* Customer Profile Collection */}
+      <ProfileManagement
+        profiles={collectedProfiles}
+        onRemoveProfile={removeProfile}
+        onClearProfiles={clearProfiles}
+        onExportProfiles={exportProfiles}
+        onShowUpload={() => setShowUploadDialog(true)}
+      />
+
+      {/* Debug Console */}
+      <DebugPanel
+        logs={debugLogs}
+        isVisible={showDebugPanel}
+        onToggleVisibility={toggleDebugPanel}
+        onClearLogs={clearDebugLogs}
+      />
+
+      {/* Upload Dialog */}
+      <UploadDialog
+        open={showUploadDialog}
+        onOpenChange={setShowUploadDialog}
+        onFileProcessed={handleFileUpload}
+      />
+    </div>
+  );
+}
