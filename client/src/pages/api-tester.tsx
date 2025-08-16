@@ -330,8 +330,26 @@ export default function ApiTester() {
       'Fetched At'
     ];
 
+    // Sort profiles by country with UAE customers first
+    const sortedProfiles = [...collectedProfiles].sort((a, b) => {
+      const getCountry = (profile) => {
+        const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+        return primaryAddress?.country || 'Unknown';
+      };
+      
+      const countryA = getCountry(a).toUpperCase();
+      const countryB = getCountry(b).toUpperCase();
+      
+      // UAE customers first
+      if (countryA === 'UAE' && countryB !== 'UAE') return -1;
+      if (countryA !== 'UAE' && countryB === 'UAE') return 1;
+      
+      // Then alphabetical order
+      return countryA.localeCompare(countryB);
+    });
+
     // Convert profiles to CSV rows
-    const csvRows = collectedProfiles.map(profile => {
+    const csvRows = sortedProfiles.map(profile => {
       const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
       const orders = profile.latestOrders || [];
       
@@ -374,8 +392,38 @@ export default function ApiTester() {
       ].join(',');
     });
 
-    // Combine headers and rows
-    const csvContent = [headers.join(','), ...csvRows].join('\n');
+    // Group CSV rows by country for better organization
+    const csvByCountry = {};
+    sortedProfiles.forEach((profile, index) => {
+      const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+      const country = primaryAddress?.country || 'Unknown Country';
+      
+      if (!csvByCountry[country]) {
+        csvByCountry[country] = [];
+      }
+      csvByCountry[country].push(csvRows[index]);
+    });
+
+    // Create organized CSV content with country sections
+    const countryKeys = Object.keys(csvByCountry).sort((a, b) => {
+      // UAE first, then alphabetical
+      if (a.toUpperCase() === 'UAE' && b.toUpperCase() !== 'UAE') return -1;
+      if (a.toUpperCase() !== 'UAE' && b.toUpperCase() === 'UAE') return 1;
+      return a.localeCompare(b);
+    });
+
+    const organizedCsvContent = [headers.join(',')];
+    
+    countryKeys.forEach(country => {
+      // Add country header row
+      organizedCsvContent.push(`"=== ${country.toUpperCase()} CUSTOMERS (${csvByCountry[country].length}) ==="`);
+      // Add country's customer rows
+      organizedCsvContent.push(...csvByCountry[country]);
+      // Add separator
+      organizedCsvContent.push('');
+    });
+
+    const csvContent = organizedCsvContent.join('\n');
 
     // Create and download file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -405,45 +453,86 @@ export default function ApiTester() {
       return;
     }
 
-    // Create formatted text content
-    const txtContent = collectedProfiles.map((profile, index) => {
+    // Sort profiles by country with UAE customers first
+    const sortedProfiles = [...collectedProfiles].sort((a, b) => {
+      const getCountry = (profile) => {
+        const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+        return primaryAddress?.country || 'Unknown';
+      };
+      
+      const countryA = getCountry(a).toUpperCase();
+      const countryB = getCountry(b).toUpperCase();
+      
+      // UAE customers first
+      if (countryA === 'UAE' && countryB !== 'UAE') return -1;
+      if (countryA !== 'UAE' && countryB === 'UAE') return 1;
+      
+      // Then alphabetical order
+      return countryA.localeCompare(countryB);
+    });
+
+    // Group profiles by country
+    const profilesByCountry = {};
+    sortedProfiles.forEach(profile => {
       const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
-      const orders = profile.latestOrders || [];
+      const country = primaryAddress?.country || 'Unknown Country';
       
-      // Format latest orders section
-      let ordersSection = '';
-      if (orders.length > 0) {
-        ordersSection = orders.slice(0, 5).map((order, orderIndex) => {
-          const orderAmount = order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
-          const invoiceUrl = order.invoiceUrl || order.invoice_url || order.invoiceLink || 'N/A';
-          const orderDate = order.createDate || order.date || order.orderDate || 'N/A';
-          const shipmentStatus = order.shipStatus || order.status || 'Unknown';
-          const orderStatus = order.orderStatus || 'Unknown';
-          const combinedStatus = shipmentStatus !== 'Unknown' && orderStatus !== 'Unknown' && shipmentStatus !== orderStatus 
-            ? `${shipmentStatus} | ${orderStatus}` 
-            : shipmentStatus !== 'Unknown' ? shipmentStatus : orderStatus;
-          
-          return `  Order ${orderIndex + 1}:
-    ID: ${order.orderId || order.id || 'N/A'}
-    Date: ${orderDate}
-    Amount: ${orderAmount}
-    Status: ${combinedStatus}
-    Invoice URL: ${invoiceUrl}`;
-        }).join('\n\n');
-      } else {
-        ordersSection = '  No orders found';
+      if (!profilesByCountry[country]) {
+        profilesByCountry[country] = [];
       }
-      
-      return `=== CUSTOMER PROFILE #${index + 1} ===
+      profilesByCountry[country].push(profile);
+    });
+
+    // Create formatted content organized by country
+    const countryKeys = Object.keys(profilesByCountry).sort((a, b) => {
+      // UAE first, then alphabetical
+      if (a.toUpperCase() === 'UAE' && b.toUpperCase() !== 'UAE') return -1;
+      if (a.toUpperCase() !== 'UAE' && b.toUpperCase() === 'UAE') return 1;
+      return a.localeCompare(b);
+    });
+
+    const txtContent = countryKeys.map(country => {
+      const profiles = profilesByCountry[country];
+      const countryHeader = `
+${'#'.repeat(60)}
+###  ${country.toUpperCase()} CUSTOMERS (${profiles.length} ${profiles.length === 1 ? 'customer' : 'customers'})
+${'#'.repeat(60)}
+
+`;
+
+      const countryProfiles = profiles.map((profile, profileIndex) => {
+        const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+        const orders = profile.latestOrders || [];
+        
+        // Format latest orders section
+        let ordersSection = '';
+        if (orders.length > 0) {
+          ordersSection = orders.slice(0, 5).map((order, orderIndex) => {
+            const orderAmount = order.subtotal || order.subTotal || order.transactionPrice || order.totalAmount || order.amount || order.transactionAmount || 0;
+            const invoiceUrl = order.invoiceUrl || order.invoice_url || order.invoiceLink || 'N/A';
+            const orderDate = order.createDate || order.date || order.orderDate || 'N/A';
+            const shipmentStatus = order.shipStatus || order.status || 'Unknown';
+            const orderStatus = order.orderStatus || 'Unknown';
+            const combinedStatus = shipmentStatus !== 'Unknown' && orderStatus !== 'Unknown' && shipmentStatus !== orderStatus 
+              ? `${shipmentStatus} | ${orderStatus}` 
+              : shipmentStatus !== 'Unknown' ? shipmentStatus : orderStatus;
+            
+            return `    Order ${orderIndex + 1}:
+      ID: ${order.orderId || order.id || 'N/A'}
+      Date: ${orderDate}
+      Amount: ${orderAmount}
+      Status: ${combinedStatus}
+      Invoice URL: ${invoiceUrl}`;
+          }).join('\n\n');
+        } else {
+          ordersSection = '    No orders found';
+        }
+        
+        return `=== ${country.toUpperCase()} CUSTOMER #${profileIndex + 1} ===
 Customer ID: ${profile.customerId || 'N/A'}
 Full Name: ${profile.fullName || 'N/A'}
 Email: ${profile.email || 'N/A'}
 Phone Number: ${profile.phoneNumber || 'N/A'}
-Total Orders: ${profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0)}
-Total Purchase Amount: ${profile.totalPurchasesAmount || 0}
-
-LATEST 5 ORDERS:
-${ordersSection}
 
 ADDRESS INFO:
   Address Count: ${profile.addresses ? profile.addresses.length : 0}
@@ -451,9 +540,18 @@ ${primaryAddress ? `  Primary Address: ${primaryAddress.address || primaryAddres
   City: ${primaryAddress.city || 'N/A'}
   Country: ${primaryAddress.country || 'N/A'}` : '  No address found'}
 
+Total Orders: ${profile.totalOrdersCount || (profile.latestOrders ? profile.latestOrders.length : 0)}
+Total Purchase Amount: ${profile.totalPurchasesAmount || 0}
+
+LATEST 5 ORDERS:
+${ordersSection}
+
 Fetched At: ${profile.fetchedAt || 'N/A'}
 `;
-    }).join('\n' + '='.repeat(50) + '\n\n');
+      }).join('\n' + '-'.repeat(50) + '\n\n');
+
+      return countryHeader + countryProfiles;
+    }).join('\n' + '='.repeat(80) + '\n');
 
     const header = `CUSTOMER PROFILES EXPORT\nGenerated: ${new Date().toISOString()}\nTotal Profiles: ${collectedProfiles.length}\n\n${'='.repeat(50)}\n\n`;
     const fullContent = header + txtContent;
@@ -2825,8 +2923,42 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                   </p>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                    {collectedProfiles.map((profile, index) => {
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                    {(() => {
+                      // Group profiles by country for display
+                      const profilesByCountry = {};
+                      collectedProfiles.forEach(profile => {
+                        const primaryAddress = profile.addresses && profile.addresses.length > 0 ? profile.addresses[0] : null;
+                        const country = primaryAddress?.country || 'Unknown Country';
+                        
+                        if (!profilesByCountry[country]) {
+                          profilesByCountry[country] = [];
+                        }
+                        profilesByCountry[country].push(profile);
+                      });
+
+                      // Sort countries with UAE first
+                      const countryKeys = Object.keys(profilesByCountry).sort((a, b) => {
+                        if (a.toUpperCase() === 'UAE' && b.toUpperCase() !== 'UAE') return -1;
+                        if (a.toUpperCase() !== 'UAE' && b.toUpperCase() === 'UAE') return 1;
+                        return a.localeCompare(b);
+                      });
+
+                      return countryKeys.map(country => (
+                        <div key={country} className="border border-slate-300 rounded-lg overflow-hidden">
+                          {/* Country Header */}
+                          <div className="bg-blue-50 border-b border-slate-300 px-4 py-2">
+                            <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                              <span className="text-blue-600">{country.toUpperCase()}</span>
+                              <Badge className="bg-blue-100 text-blue-800 text-xs">
+                                {profilesByCountry[country].length} {profilesByCountry[country].length === 1 ? 'customer' : 'customers'}
+                              </Badge>
+                            </h4>
+                          </div>
+                          
+                          {/* Country Profiles */}
+                          <div className="space-y-2 p-3">
+                            {profilesByCountry[country].map((profile, profileIndex) => {
                       const latestOrderDate = profile.latestOrders.length > 0 ? 
                         new Date(profile.latestOrders[0].createDate || profile.latestOrders[0].date || profile.latestOrders[0].orderDate).toLocaleString() : 
                         'N/A';
@@ -2966,8 +3098,12 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                             </div>
                           </DialogContent>
                         </Dialog>
-                      );
-                    })}
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                   <div className="mt-4 pt-4 border-t border-slate-200">
                     <div className="flex items-center justify-between text-sm text-slate-600">
