@@ -74,6 +74,28 @@ export const usePerformanceMonitoring = () => {
   }, []);
 
   /**
+   * Update metrics directly with bulk progress data
+   */
+  const updateMetrics = useCallback((bulkState: {
+    totalItems: number;
+    processedItems: number;
+    successfulItems: number;
+    failedItems: number;
+    averageProcessingTime: number;
+    activeConnections: number;
+  }) => {
+    setMetrics(prev => ({
+      ...prev,
+      totalRequests: bulkState.totalItems,
+      completedRequests: bulkState.processedItems,
+      successfulRequests: bulkState.successfulItems,
+      failedRequests: bulkState.failedItems,
+      averageResponseTime: bulkState.averageProcessingTime,
+      activeConnections: bulkState.activeConnections
+    }));
+  }, []);
+
+  /**
    * Record a completed request
    */
   const recordRequest = useCallback((
@@ -157,6 +179,7 @@ export const usePerformanceMonitoring = () => {
     startMonitoring,
     stopMonitoring,
     recordRequest,
+    updateMetrics,
     resetMetrics,
     updateCacheStats
   };

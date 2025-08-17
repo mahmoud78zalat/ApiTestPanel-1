@@ -98,6 +98,26 @@ export function ProfileManagement({
           </div>
           
           <div className="flex space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => onExportProfiles('csv')}
+              data-testid="button-export-csv"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => onExportProfiles('txt')}
+              data-testid="button-export-txt"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Export TXT
+            </Button>
+
             <Button variant="outline" size="sm" onClick={onShowUpload}>
               <Upload className="w-4 h-4 mr-2" />
               Import IDs

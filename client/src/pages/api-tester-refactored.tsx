@@ -101,6 +101,7 @@ export default function ApiTesterRefactored() {
     startMonitoring,
     stopMonitoring,
     recordRequest,
+    updateMetrics,
     resetMetrics,
     updateCacheStats
   } = usePerformanceMonitoring();
@@ -265,12 +266,15 @@ export default function ApiTesterRefactored() {
           retryAttempts: 3,
           delayBetweenBatches: 200,
           onProgress: (state) => {
-            // Record each processed item for performance monitoring
-            if (state.processedItems > 0) {
-              const responseTime = state.averageProcessingTime || 100; // Use average or default
-              const success = state.successfulItems / state.processedItems > 0.5; // Consider successful if > 50% success rate
-              recordRequest(success, responseTime, 1000, false); // Approximate data size
-            }
+            // Update performance monitoring with accurate item-based progress
+            updateMetrics({
+              totalItems: state.totalItems,
+              processedItems: state.processedItems,
+              successfulItems: state.successfulItems,
+              failedItems: state.failedItems,
+              averageProcessingTime: state.averageProcessingTime || 100,
+              activeConnections: state.currentBatch
+            });
             
             logProcessStep(
               state.currentBatch + 1, 
