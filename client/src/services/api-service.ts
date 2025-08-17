@@ -259,6 +259,8 @@ export class BrandsForLessService extends ApiService {
         if (fullName && fullName !== "") {
           profile.fullName = fullName;
         }
+        
+        // Store address data properly
         profile.addresses = customerDataArray || [];
         
         // Extract phone number from various possible fields
@@ -267,9 +269,17 @@ export class BrandsForLessService extends ApiService {
         // Extract email from various possible fields
         profile.email = customerData.email || customerData.emailAddress || "";
         
+        // Extract additional demographic data if available in address response
         profile.birthDate = customerData.birthDate || customerData.dateOfBirth || customerData.dob || undefined;
         profile.gender = customerData.gender || undefined;
         profile.registerDate = customerData.registerDate || customerData.createdAt || customerData.registrationDate || undefined;
+        
+        console.log("✅ Step 1 - Address data extracted:", {
+          fullName: profile.fullName,
+          phone: profile.phoneNumber,
+          email: profile.email,
+          addressCount: profile.addresses.length
+        });
       }
     } catch (error) {
       console.warn("❌ Step 1 failed - address data:", error);
@@ -297,27 +307,36 @@ export class BrandsForLessService extends ApiService {
           orders = ordersData.data.orders;
         }
         
-        // Sort by date and take latest orders
+        // Sort by date and take latest orders  
         const sortedOrders = orders.sort((a: any, b: any) => {
-          const dateA = new Date(a.createdAt || a.orderDate || a.date || a.createdTime || 0).getTime();
-          const dateB = new Date(b.createdAt || b.orderDate || b.date || b.createdTime || 0).getTime();
+          const dateA = new Date(a.createDate || a.createdAt || a.orderDate || a.date || 0).getTime();
+          const dateB = new Date(b.createDate || b.createdAt || b.orderDate || b.date || 0).getTime();
           return dateB - dateA;
         });
         
         // Calculate total purchases amount from ALL orders
         const totalAmount = orders.reduce((total: number, order: any) => {
-          const orderAmount = parseFloat(
-            order.subtotal ||
-            order.subTotal ||
-            order.transactionPrice || 
-            order.totalAmount || 
-            order.amount || 
-            order.value || 
-            order.price || 
-            order.orderTotal || 
-            order.grandTotal || 
-            0
-          );
+          // Extract amount from transactionAmount string (e.g., "AED 10.00" -> 10.00)
+          let orderAmount = 0;
+          if (order.transactionAmount && typeof order.transactionAmount === 'string') {
+            const matches = order.transactionAmount.match(/[\d.]+/);
+            if (matches) {
+              orderAmount = parseFloat(matches[0]);
+            }
+          } else {
+            orderAmount = parseFloat(
+              order.amount ||
+              order.subtotal ||
+              order.subTotal ||
+              order.transactionPrice || 
+              order.totalAmount || 
+              order.value || 
+              order.price || 
+              order.orderTotal || 
+              order.grandTotal || 
+              0
+            );
+          }
           return total + orderAmount;
         }, 0);
         
@@ -335,59 +354,77 @@ export class BrandsForLessService extends ApiService {
           const batch = latestOrdersForDisplay.slice(i, i + BATCH_SIZE);
           
           const batchPromises = batch.map(async (order: any) => {
-            try {
-              const orderId = order.orderId || order.id;
-              if (!orderId) {
-                return {
-                  ...order,
-                  invoiceUrl: null,
-                  orderStatus: order.status || order.orderStatus || 'Unknown'
-                };
-              }
-              
-              const orderDetailsRequest: ApiRequest = {
-                url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
-                method: "GET",
-                token: token.trim(),
-              };
-              
-              const orderDetailsData = await this.makeRequest(orderDetailsRequest);
-              
-              if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
-                const orderData = orderDetailsData.data.data;
-                const invoiceUrl = orderData.invoiceUrl || orderData.invoice_url || orderData.invoiceLink || 
-                                 orderData.receiptUrl || orderData.receipt_url || null;
-                
-                const orderStatus = orderData.orderStatus ||
-                                  orderData.shipmentStatus ||
-                                  orderData.status ||
-                                  orderData.orderState ||
-                                  orderData.deliveryStatus ||
-                                  order.status ||
-                                  order.orderStatus ||
-                                  'Unknown';
-                
-                return {
-                  ...order,
-                  invoiceUrl: invoiceUrl,
-                  orderStatus: orderStatus,
-                  enrichedData: orderData
-                };
-              } else {
-                return {
-                  ...order,
-                  invoiceUrl: null,
-                  orderStatus: order.status || order.orderStatus || 'Unknown'
-                };
-              }
-            } catch (error) {
-              console.warn(`Failed to fetch order details for order ${order.orderId || order.id}:`, error);
-              return {
-                ...order,
-                invoiceUrl: null,
-                orderStatus: order.status || order.orderStatus || 'Error'
-              };
+            // Process order data with proper date, status, and amount extraction
+            const orderId = order.orderId || order.id;
+            
+            // Extract proper order date
+            const orderDate = order.createDate || order.createdAt || order.orderDate || order.date;
+            
+            // Extract proper order status from the orders list response
+            const orderStatus = order.shipStatus || 
+                              order.status || 
+                              order.orderStatus || 
+                              order.deliveryStatus ||
+                              'Unknown';
+            
+            // Extract proper transaction amount
+            let transactionAmount = order.transactionAmount;
+            if (!transactionAmount && order.amount) {
+              transactionAmount = `AED ${order.amount}`;
             }
+            
+            // Create base order object with proper data
+            const baseOrder = {
+              ...order,
+              orderId: orderId,
+              createDate: orderDate,
+              orderDate: orderDate,
+              transactionAmount: transactionAmount,
+              orderStatus: orderStatus,
+              shipStatus: orderStatus,
+              invoiceUrl: null
+            };
+            
+            // Only fetch additional details if we have an order ID and want enriched data
+            if (orderId) {
+              try {
+                const orderDetailsRequest: ApiRequest = {
+                  url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${orderId}`,
+                  method: "GET",
+                  token: token.trim(),
+                };
+                
+                const orderDetailsData = await this.makeRequest(orderDetailsRequest);
+                
+                if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
+                  const orderData = orderDetailsData.data.data;
+                  
+                  // Extract invoice URL from detailed order data
+                  const invoiceUrl = orderData.invoiceNo ? 
+                    `https://portal.brandsforlessuae.com/invoice/invoice.jsp?invno=${orderData.invoiceNo}` : 
+                    null;
+                  
+                  // Get enhanced status if available
+                  const enhancedStatus = orderData.shipStatus || 
+                                       orderData.status || 
+                                       orderData.orderStatus || 
+                                       orderStatus;
+                  
+                  return {
+                    ...baseOrder,
+                    invoiceUrl: invoiceUrl,
+                    orderStatus: enhancedStatus,
+                    shipStatus: enhancedStatus,
+                    enrichedData: orderData
+                  };
+                }
+              } catch (error) {
+                console.warn(`Failed to fetch enhanced details for order ${orderId}:`, error);
+              }
+            }
+            
+            // Return base order data (which already has all the essential info)
+            return baseOrder;
           });
           
           const batchResults = await Promise.all(batchPromises);
@@ -436,49 +473,60 @@ export class BrandsForLessService extends ApiService {
       }
     }
 
-    // Step 4: Try to fetch additional customer data for PII information
+    // Step 4: Fetch comprehensive customer PII data using the correct endpoint
     try {
-      console.log("🔐 Step 4: Fetching additional customer data", profileId);
-      const customerDataRequest: ApiRequest = {
+      console.log("🔐 Step 4: Fetching PII and customer details", profileId);
+      const piiRequest: ApiRequest = {
         url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId=${actualCustomerId}`,
         method: "GET",
         token: token.trim(),
       };
       
-      const customerDataResponse = await this.makeRequest(customerDataRequest);
+      const piiResponse = await this.makeRequest(piiRequest);
       
-      if (customerDataResponse.status === 200 && customerDataResponse.data && customerDataResponse.data.data && customerDataResponse.data.data.length > 0) {
-        const customerInfo = customerDataResponse.data.data[0];
+      if (piiResponse.status === 200 && piiResponse.data && piiResponse.data.data && piiResponse.data.data.length > 0) {
+        const customerPiiData = piiResponse.data.data[0];
         
-        // Extract PII data from the response
-        if (!profile.birthDate && customerInfo.birthday) {
-          profile.birthDate = customerInfo.birthday;
+        // Extract PII data with priority to this authoritative source
+        if (customerPiiData.birthday) {
+          profile.birthDate = customerPiiData.birthday;
         }
-        if (!profile.gender && customerInfo.gender) {
-          profile.gender = customerInfo.gender;
+        if (customerPiiData.gender) {
+          profile.gender = customerPiiData.gender;
         }
-        if (!profile.registerDate && (customerInfo.regDate || customerInfo.registrationDate || customerInfo.createdAt)) {
-          profile.registerDate = customerInfo.regDate || customerInfo.registrationDate || customerInfo.createdAt;
-        }
-        
-        // Also extract any missing contact information
-        if (!profile.email && customerInfo.email) {
-          profile.email = customerInfo.email;
-        }
-        if (!profile.phoneNumber && customerInfo.mobile) {
-          profile.phoneNumber = customerInfo.mobile;
+        if (customerPiiData.regDate || customerPiiData.registrationDate || customerPiiData.createdAt) {
+          profile.registerDate = customerPiiData.regDate || customerPiiData.registrationDate || customerPiiData.createdAt;
         }
         
-        // Extract name if still missing
-        if (!profile.fullName || profile.fullName === "Unknown Customer") {
-          const fullName = customerInfo.fullName || customerInfo.name || `${customerInfo.fname || customerInfo.firstName || ''} ${customerInfo.lname || customerInfo.lastName || ''}`.trim();
+        // Extract missing contact info from PII source
+        if (!profile.email && customerPiiData.email) {
+          profile.email = customerPiiData.email;
+        }
+        if (!profile.phoneNumber && customerPiiData.mobile) {
+          profile.phoneNumber = customerPiiData.mobile;
+        }
+        
+        // Extract name with priority to PII source
+        if (!profile.fullName || profile.fullName === "Unknown Customer" || profile.fullName.trim() === "") {
+          const fullName = customerPiiData.fullName || 
+                           customerPiiData.name || 
+                           `${customerPiiData.fname || customerPiiData.firstName || ''} ${customerPiiData.lname || customerPiiData.lastName || ''}`.trim();
           if (fullName && fullName !== "") {
             profile.fullName = fullName;
           }
         }
+
+        console.log("✅ PII data extracted successfully:", {
+          birthday: profile.birthDate,
+          gender: profile.gender, 
+          registerDate: profile.registerDate,
+          fullName: profile.fullName
+        });
+      } else {
+        console.warn("❌ PII endpoint returned no data or error:", piiResponse.status, piiResponse.data?.message);
       }
     } catch (error) {
-      console.warn("❌ Step 4 failed - customer data:", error);
+      console.warn("❌ Step 4 failed - PII data fetch:", error);
     }
 
     // Final validation
