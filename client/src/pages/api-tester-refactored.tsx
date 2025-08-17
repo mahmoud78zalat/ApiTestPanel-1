@@ -5,7 +5,7 @@
  * and custom hooks for better maintainability and separation of concerns
  */
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 // Custom Hooks
@@ -105,6 +105,10 @@ export default function ApiTesterRefactored() {
     updateCacheStats
   } = usePerformanceMonitoring();
 
+  // Local state for bulk mode
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkInput, setBulkInput] = useState('');
+
   // Wrap API functions to track performance
   const trackPerformance = async (operation: () => Promise<any>, operationName: string) => {
     const startTime = Date.now();
@@ -188,6 +192,45 @@ export default function ApiTesterRefactored() {
           console.error('API request failed:', error);
         }
       }
+    } else {
+      // Bulk processing mode
+      const parseBulkInput = (input: string): string[] => {
+        return input
+          .split(/[,\n\r\t\s]+/)
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+      };
+
+      const values = parseBulkInput(bulkInput);
+      if (values.length === 0) {
+        toast({
+          title: "No Values to Process",
+          description: "Please enter values for bulk processing",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const currentEndpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
+      if (!currentEndpoint) {
+        toast({
+          title: "No Endpoint Selected",
+          description: "Please select an endpoint for bulk processing",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Handle bulk full profile fetching with optimized batching
+      if (currentEndpoint.id === 'fetch-full-profile') {
+        handleBulkProcessing(values);
+      } else {
+        toast({
+          title: "Bulk Mode Available",
+          description: "Currently only full profile fetching supports bulk mode",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -203,7 +246,7 @@ export default function ApiTesterRefactored() {
     }
 
     setShowDebugPanel(true);
-    startMonitoring();
+    startMonitoring(customerIds.length);
     
     logProcessStep(1, "Bulk Processing Initialization", {
       totalCustomers: customerIds.length,
@@ -299,8 +342,8 @@ export default function ApiTesterRefactored() {
         selectedEndpoint={selectedEndpoint}
         parameters={parameters}
         showCustomUrl={showCustomUrl}
-        bulkMode={false}
-        bulkInput=""
+        bulkMode={bulkMode}
+        bulkInput={bulkInput}
         isLoading={isLoading || isProfileLoading}
         onUrlChange={setUrl}
         onMethodChange={setMethod}
@@ -308,8 +351,8 @@ export default function ApiTesterRefactored() {
         onEndpointChange={setSelectedEndpoint}
         onParametersChange={setParameters}
         onShowCustomUrlToggle={setShowCustomUrl}
-        onBulkModeToggle={() => {}}
-        onBulkInputChange={() => {}}
+        onBulkModeToggle={setBulkMode}
+        onBulkInputChange={setBulkInput}
         onSubmit={handleSubmit}
         onReset={resetForm}
       />
@@ -321,7 +364,20 @@ export default function ApiTesterRefactored() {
         isLoading={isLoading}
       />
 
-      {/* Professional bulk processing moved to Profile Management */}
+      {/* Bulk Results Display - shows when bulk processing completes */}
+      {processingState.isProcessing && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+          <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+            Bulk Processing in Progress...
+          </h3>
+          <div className="text-sm text-blue-700 dark:text-blue-300">
+            <div>Processing {processingState.processedItems} of {processingState.totalItems}</div>
+            <div>Successful: {processingState.successfulItems}</div>
+            <div>Failed: {processingState.failedItems}</div>
+            <div>Duplicates: {processingState.duplicateItems}</div>
+          </div>
+        </div>
+      )}
 
       {/* Customer Profile Collection */}
       <ProfileManagement
@@ -345,7 +401,7 @@ export default function ApiTesterRefactored() {
         metrics={metrics}
         isActive={isMonitoring}
         onReset={resetMetrics}
-        showDetails={false}
+        showDetails={bulkMode}
         duplicateCount={duplicateCount}
       />
 
