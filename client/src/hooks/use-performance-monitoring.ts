@@ -39,6 +39,7 @@ export const usePerformanceMonitoring = () => {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const responseTimes = useRef<number[]>([]);
   const cacheStats = useRef({ hits: 0, misses: 0 });
+  const lastUpdateTime = useRef<number>(0);
 
   /**
    * Start monitoring performance
@@ -74,7 +75,7 @@ export const usePerformanceMonitoring = () => {
   }, []);
 
   /**
-   * Update metrics directly with bulk progress data
+   * Update metrics directly with bulk progress data (throttled for performance)
    */
   const updateMetrics = useCallback((bulkState: {
     totalItems: number;
@@ -84,6 +85,13 @@ export const usePerformanceMonitoring = () => {
     averageProcessingTime: number;
     activeConnections: number;
   }) => {
+    // Throttle updates to prevent UI freezing during high-volume operations
+    const now = Date.now();
+    if (now - lastUpdateTime.current < 250) { // Update at most every 250ms
+      return;
+    }
+    lastUpdateTime.current = now;
+
     setMetrics(prev => ({
       ...prev,
       totalRequests: bulkState.totalItems,
@@ -91,12 +99,14 @@ export const usePerformanceMonitoring = () => {
       successfulRequests: bulkState.successfulItems,
       failedRequests: bulkState.failedItems,
       averageResponseTime: bulkState.averageProcessingTime,
-      activeConnections: bulkState.activeConnections
+      activeConnections: bulkState.activeConnections,
+      profilesPerSecond: bulkState.processedItems > 0 && prev.startTime ? 
+        bulkState.processedItems / ((now - prev.startTime) / 1000) : 0
     }));
   }, []);
 
   /**
-   * Record a completed request
+   * Record a completed request (throttled for performance)
    */
   const recordRequest = useCallback((
     success: boolean,
@@ -104,13 +114,26 @@ export const usePerformanceMonitoring = () => {
     dataSize: number = 0,
     fromCache: boolean = false
   ) => {
+    // Always update internal counters
     responseTimes.current.push(responseTime);
+    
+    // Keep response times array bounded to prevent memory issues
+    if (responseTimes.current.length > 1000) {
+      responseTimes.current = responseTimes.current.slice(-500);
+    }
     
     if (fromCache) {
       cacheStats.current.hits++;
     } else {
       cacheStats.current.misses++;
     }
+
+    // Throttle UI updates for performance
+    const now = Date.now();
+    if (now - lastUpdateTime.current < 100) { // Update at most every 100ms for individual requests
+      return;
+    }
+    lastUpdateTime.current = now;
 
     setMetrics(prev => {
       const completedRequests = prev.completedRequests + 1;
@@ -127,6 +150,9 @@ export const usePerformanceMonitoring = () => {
         ? (cacheStats.current.hits / totalCacheRequests) * 100
         : 0;
 
+      const elapsedTime = now - prev.startTime;
+      const profilesPerSecond = elapsedTime > 0 ? (completedRequests / (elapsedTime / 1000)) : 0;
+
       return {
         ...prev,
         completedRequests,
@@ -134,7 +160,8 @@ export const usePerformanceMonitoring = () => {
         failedRequests,
         averageResponseTime,
         totalDataTransferred,
-        cacheHitRate
+        cacheHitRate,
+        profilesPerSecond
       };
     });
   }, []);

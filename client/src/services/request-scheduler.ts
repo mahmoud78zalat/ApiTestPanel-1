@@ -59,8 +59,8 @@ class ProfessionalRequestScheduler {
 
   constructor(config: Partial<SchedulerConfig> = {}) {
     this.config = {
-      maxConcurrentRequests: 8, // Optimal for most APIs
-      requestsPerSecond: 5, // Conservative start
+      maxConcurrentRequests: 6, // Reduced for better stability
+      requestsPerSecond: 3, // More conservative to prevent freezing
       adaptiveRateLimit: true,
       circuitBreakerThreshold: 0.5, // 50% failure rate
       retryDelay: 1000,

@@ -57,7 +57,7 @@ export function PerformanceMonitor({
   const [isExpanded, setIsExpanded] = useState(showDetails);
   const [elapsedTime, setElapsedTime] = useState(0);
 
-  // Update elapsed time
+  // Update elapsed time (less frequently for performance)
   useEffect(() => {
     if (!isActive) return;
 
@@ -65,7 +65,7 @@ export function PerformanceMonitor({
       const now = Date.now();
       const elapsed = now - metrics.startTime;
       setElapsedTime(elapsed);
-    }, 100);
+    }, 500); // Update every 500ms instead of 100ms for better performance
 
     return () => clearInterval(interval);
   }, [isActive, metrics.startTime]);

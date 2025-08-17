@@ -24,18 +24,7 @@ export class ApiService {
     const startTime = performance.now();
     const requestId = Math.random().toString(36).substr(2, 9);
     
-    console.log("🌐 CLIENT API REQUEST", requestId);
-    console.log("├─ Target URL:", request.url);
-    console.log("├─ Method:", request.method);
-    console.log("├─ Token provided:", !!request.token);
-    if (request.token) {
-      console.log("├─ Token preview:", request.token.substring(0, 20) + "...");
-    }
-    console.log("├─ Custom Headers:", request.headers || "none");
-    if (request.body) {
-      console.log("├─ Request Body:", request.body);
-    }
-    console.log("└─ Sending to proxy at /api/proxy");
+
     
     try {
       const response = await apiRequest("POST", "/api/proxy", request);
@@ -43,24 +32,14 @@ export class ApiService {
       const endTime = performance.now();
       const clientTime = Math.round(endTime - startTime);
       
-      console.log("✅ CLIENT API RESPONSE", requestId);
-      console.log("├─ Status:", responseData.status, responseData.statusText);
-      console.log("├─ Server Response Time:", responseData.responseTime + "ms");
-      console.log("├─ Total Client Time:", clientTime + "ms");
-      console.log("├─ Response Size:", responseData.size + " bytes");
-      console.log("├─ Data Preview:", JSON.stringify(responseData.data).substring(0, 200) + "...");
-      console.log("└─ Headers Count:", Object.keys(responseData.headers || {}).length);
+
       
       return responseData;
     } catch (error) {
       const endTime = performance.now();
       const clientTime = Math.round(endTime - startTime);
       
-      console.error("❌ CLIENT API ERROR", requestId);
-      console.error("├─ Client Time:", clientTime + "ms");
-      console.error("├─ Error Type:", error instanceof Error ? error.constructor.name : typeof error);
-      console.error("├─ Error Message:", error instanceof Error ? error.message : String(error));
-      console.error("└─ Original Request:", request);
+
       
       throw new Error(`API request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -80,15 +59,10 @@ export class ApiService {
     const bulkId = Math.random().toString(36).substr(2, 9);
     const startTime = performance.now();
     
-    console.log("📦 BULK REQUEST STARTED", bulkId);
-    console.log("├─ Total Requests:", requests.length);
-    console.log("├─ Batch Size: 8");
-    console.log("├─ Delay Between Batches: 50ms");
-    console.log("└─ Timeout: 30s per request");
+    // Bulk request started with minimal logging
     
     // Convert requests to functions for batch processing
     const requestFunctions = requests.map((request, index) => async () => {
-      console.log(`📋 Processing bulk request ${index + 1}/${requests.length}:`, request.url);
       return await professionalScheduler.scheduleRequest(request.url, request.method, { priority: 'normal', token: request.token, headers: request.headers });
     });
 
@@ -106,16 +80,8 @@ export class ApiService {
     const endTime = performance.now();
     const totalTime = Math.round(endTime - startTime);
     
-    console.log("📊 BULK REQUEST COMPLETED", bulkId);
-    console.log("├─ Total Time:", totalTime + "ms");
-    console.log("├─ Average per Request:", Math.round(totalTime / requests.length) + "ms");
-    
+    // Calculate final metrics without verbose logging
     const successCount = results.filter(r => r.status === 'fulfilled').length;
-    const errorCount = results.length - successCount;
-    
-    console.log("├─ Successful:", successCount);
-    console.log("├─ Failed:", errorCount);
-    console.log("└─ Success Rate:", Math.round((successCount / results.length) * 100) + "%");
 
     // Convert results and report progress
     return results.map((result, index) => {
@@ -183,17 +149,14 @@ export class BrandsForLessService extends ApiService {
     const profileId = Math.random().toString(36).substr(2, 9);
     const startTime = performance.now();
     
-    console.log("👤 CUSTOMER PROFILE FETCH STARTED", profileId);
-    console.log("├─ Input ID:", customerIdOrOrderId);
-    console.log("├─ Token provided:", !!token);
-    console.log("└─ Multi-step process: resolve ID → address → orders → user → pii");
+    // Customer profile fetch started
     
     // Step 0: Determine if input is customer ID or order ID and resolve to customer ID
     let actualCustomerId = customerIdOrOrderId;
     const isOrderId = this.isOrderId(customerIdOrOrderId);
     
     if (isOrderId) {
-      console.log("🔍 Step 0: Resolving order ID to customer ID", profileId);
+
       try {
         const orderRequest: ApiRequest = {
           url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${customerIdOrOrderId}`,
@@ -211,12 +174,12 @@ export class BrandsForLessService extends ApiService {
             throw new Error(`Could not extract customer ID from order ${customerIdOrOrderId}`);
           }
           
-          console.log("✅ Resolved customer ID:", actualCustomerId);
+
         } else {
           throw new Error(`Order ${customerIdOrOrderId} not found or invalid response`);
         }
       } catch (error) {
-        console.error("❌ Step 0 failed - order resolution:", error);
+
         throw new Error(`Failed to resolve order ID ${customerIdOrOrderId} to customer ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
@@ -237,7 +200,7 @@ export class BrandsForLessService extends ApiService {
 
     // Step 1: Fetch customer address/profile info (ORIGINAL IMPLEMENTATION)
     try {
-      console.log("🏠 Step 1: Fetching address data", profileId);
+
       const addressRequest: ApiRequest = {
         url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${actualCustomerId}`,
         method: "GET",
@@ -278,20 +241,15 @@ export class BrandsForLessService extends ApiService {
         profile.gender = customerData.gender || undefined;
         profile.registerDate = customerData.registerDate || customerData.createdAt || customerData.registrationDate || undefined;
         
-        console.log("✅ Step 1 - Address data extracted:", {
-          fullName: profile.fullName,
-          phone: profile.phoneNumber,
-          email: profile.email,
-          addressCount: profile.addresses.length
-        });
+
       }
     } catch (error) {
-      console.warn("❌ Step 1 failed - address data:", error);
+
     }
 
     // Step 2: Fetch customer orders (ORIGINAL IMPLEMENTATION)
     try {
-      console.log("📦 Step 2: Fetching orders data", profileId);
+
       const ordersRequest: ApiRequest = {
         url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${actualCustomerId}&pageNum=1&pageSize=1000`,
         method: "GET",
@@ -353,15 +311,7 @@ export class BrandsForLessService extends ApiService {
             );
           }
           
-          // Add debug logging for amount calculation
-          if (orderAmount > 0) {
-            console.log(`💰 Order ${order.orderId || 'unknown'} amount: ${orderAmount} (from ${
-              order.transactionAmount && typeof order.transactionAmount === 'number' ? 'numeric transactionAmount' :
-              order.transactionAmount && typeof order.transactionAmount === 'string' ? 'string transactionAmount' :
-              order.subtotal && typeof order.subtotal === 'number' ? 'numeric subtotal' :
-              'fallback fields'
-            })`);
-          }
+          // Calculate order amount without verbose logging
           
           return total + orderAmount;
         }, 0);
@@ -473,10 +423,10 @@ export class BrandsForLessService extends ApiService {
                     enrichedData: detailedOrderData
                   };
                 } else {
-                  console.warn(`Order details API returned error for ${orderId}:`, orderDetailsResponse.status, orderDetailsResponse.data?.message);
+
                 }
               } catch (error) {
-                console.warn(`Failed to fetch detailed order data for ${orderId}:`, error);
+
               }
             }
             
@@ -496,13 +446,13 @@ export class BrandsForLessService extends ApiService {
         profile.latestOrders = latestOrdersWithUrls;
       }
     } catch (error) {
-      console.warn("❌ Step 2 failed - orders data:", error);
+
     }
 
     // Step 3: Try to get more profile data if name is still missing
     if (!profile.fullName || profile.fullName === "") {
       try {
-        console.log("👤 Step 3: Fetching user data (name missing)", profileId);
+
         const userRequest: ApiRequest = {
           url: `https://api.brandsforlessuae.com/customer/api/v1/user?customerId=${actualCustomerId}`,
           method: "GET",
@@ -526,13 +476,13 @@ export class BrandsForLessService extends ApiService {
           }
         }
       } catch (error) {
-        console.warn("❌ Step 3 failed - user data:", error);
+
       }
     }
 
     // Step 4: Fetch comprehensive customer PII data using the correct endpoint
     try {
-      console.log("🔐 Step 4: Fetching PII and customer details", profileId);
+
       const piiRequest: ApiRequest = {
         url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId=${actualCustomerId}`,
         method: "GET",
@@ -578,20 +528,10 @@ export class BrandsForLessService extends ApiService {
           }
         }
 
-        console.log("✅ PII data extracted successfully:", {
-          birthday: profile.birthDate,
-          gender: profile.gender, 
-          registerDate: profile.registerDate,
-          fullName: profile.fullName,
-          rawRegDate: customerPiiData.regDate,
-          rawRegistrationDate: customerPiiData.registrationDate,
-          rawCreatedAt: customerPiiData.createdAt
-        });
-      } else {
-        console.warn("❌ PII endpoint returned no data or error:", piiResponse.status, piiResponse.data?.message);
+
       }
     } catch (error) {
-      console.warn("❌ Step 4 failed - PII data fetch:", error);
+      // PII fetch failed silently
     }
 
     // Final validation
@@ -602,15 +542,7 @@ export class BrandsForLessService extends ApiService {
     const endTime = performance.now();
     const totalTime = Math.round(endTime - startTime);
     
-    console.log("✅ CUSTOMER PROFILE COMPLETED", profileId);
-    console.log("├─ Total Time:", totalTime + "ms");
-    console.log("├─ Customer Name:", profile.fullName);
-    console.log("├─ Phone:", profile.phoneNumber || "not found");
-    console.log("├─ Email:", profile.email || "not found");
-    console.log("├─ Addresses:", profile.addresses.length);
-    console.log("├─ Orders:", profile.totalOrdersCount);
-    console.log("├─ Total Purchases:", profile.totalPurchasesAmount);
-    console.log("└─ Latest Orders:", profile.latestOrders.length);
+    // Profile fetch completed in ${totalTime}ms
 
     // Return the complete profile data directly (not wrapped in a response structure)
     return profile;

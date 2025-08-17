@@ -1,149 +1,37 @@
-# Overview
+# Brands for Less API Testing Platform
 
-This is a full-stack REST API testing application built with React and Express.js. The application serves as a proxy tool that allows users to test external APIs (specifically targeting the Brands for Less API) by providing a unified interface for making HTTP requests with custom headers, authentication tokens, and request bodies. The application features a modern UI with JSON response visualization, request history tracking, and comprehensive API testing capabilities.
+## Project Overview
+A professional API testing and customer profile management platform for Brands for Less, offering comprehensive endpoint exploration, performance optimization, and advanced data export capabilities.
 
-# User Preferences
+## Key Technologies
+- React/TypeScript frontend
+- Advanced API request handling with proxy server
+- Dynamic export functionality
+- Comprehensive profile management
+- Real-time performance monitoring
+- Enhanced data processing and debugging mechanisms
 
-Preferred communication style: Simple, everyday language.
+## Recent Changes
+- **Performance Optimization (August 17, 2025)**: Removed extensive logging that was causing massive performance issues during bulk operations
+- **Bulk Request Optimization**: Reduced concurrent request limits and added throttling to prevent UI freezing during 700+ requests
+- **Performance Monitor Enhancement**: Implemented throttled updates and optimized rendering for high-volume operations
+- **Request Scheduler Improvements**: Reduced concurrent connections from 8 to 6 and requests per second from 5 to 3 for better stability
 
-# System Architecture
+## User Preferences
+- Performance is critical - avoid verbose logging during bulk operations
+- System should handle 700+ requests without freezing
+- Prioritize stability over speed for bulk operations
+- Minimal console output to prevent performance degradation
 
-## Frontend Architecture
-- **Framework**: React 18 with TypeScript using Vite as the build tool
-- **UI Components**: Shadcn/UI component library built on top of Radix UI primitives
-- **Styling**: Tailwind CSS with custom CSS variables for theming
-- **State Management**: TanStack Query for server state management and API caching
-- **Routing**: Wouter for client-side routing (lightweight alternative to React Router)
-- **Form Handling**: React Hook Form with Zod validation for type-safe form management
+## Architecture
+- Frontend handles most application logic
+- Backend serves as proxy for API calls and data persistence
+- Performance monitoring with throttled updates
+- Bulk processing with conservative batching and rate limiting
 
-## Backend Architecture
-- **Framework**: Express.js with TypeScript running on Node.js
-- **API Design**: RESTful API with a single proxy endpoint (`/api/proxy`)
-- **Request Handling**: Middleware-based architecture with custom logging and error handling
-- **Development Server**: Integration with Vite for hot module replacement in development
-- **Build Process**: ESBuild for server-side bundling in production
-
-## Data Storage Solutions
-- **Database**: PostgreSQL configured with Drizzle ORM
-- **Connection**: Neon Database serverless PostgreSQL via `@neondatabase/serverless`
-- **Schema Management**: Drizzle Kit for database migrations and schema management
-- **In-Memory Storage**: Fallback MemStorage implementation for development/testing
-- **Session Management**: PostgreSQL-backed sessions using `connect-pg-simple`
-
-## Authentication and Authorization
-- **Token-Based Authentication**: Support for JWT tokens passed via `x-access-token` header
-- **CORS Handling**: Built-in CORS management for cross-origin API requests
-- **User Management**: Basic user schema with username/password authentication
-- **Session Storage**: PostgreSQL session store for persistent user sessions
-
-## External Dependencies
-- **Target API**: Brands for Less UAE API (`api.brandsforlessuae.com`)
-- **Database Service**: Neon Database (serverless PostgreSQL)
-- **UI Framework**: Radix UI primitives for accessible component foundations
-- **Build Tools**: Vite for frontend bundling, ESBuild for backend compilation
-- **Development Tools**: Replit-specific plugins for development environment integration
-
-The application uses a monorepo structure with shared TypeScript schemas between client and server, ensuring type safety across the full stack. The proxy architecture allows for secure API testing while handling authentication, CORS, and request/response transformation transparently.
-
-# Recent Changes
-
-## August 17, 2025 - Registration Date Fix + Enhanced Profile Export with Incomplete Profile Detection
-- **Fixed Registration Date Display Issue**: Resolved the problem where "Registration: Not available" was showing despite regDate being present in API responses
-  - Updated PII data extraction logic in `fetchCustomerProfile` to properly handle regDate field mapping
-  - Added enhanced logging to track raw API response fields (regDate, registrationDate, createdAt) for debugging
-  - Now correctly displays registration dates from the customer/api/v1/user endpoint which contains the regDate field
-- **Enhanced Country Detection**: Added intelligent country determination using currency fallback when address data is unavailable
-  - Added `getCountryFromCurrency()` utility function to map currencies (AED, USD, EUR, etc.) to countries  
-  - Profile export now uses both address and currency data for more accurate country classification
-  - Supports UAE, USA, Europe, UK, Saudi Arabia, Qatar, Kuwait, Bahrain, and Oman currency detection
-- **Incomplete Profile Detection and Organization**: Implemented comprehensive incomplete profile identification and separate handling
-  - Added `profile-validation.ts` utility with functions to detect incomplete profiles (missing address, birth date, or gender)
-  - Updated both CSV and TXT export functions to categorize and separate complete vs incomplete profiles
-  - Incomplete profiles are now placed at the end of export files with clear labeling and missing field identification
-  - Added "Profile Status" and "Missing Fields" columns to CSV exports for better data organization
-  - TXT exports now include separate sections for complete and incomplete profiles with detailed missing information
-- **Enhanced Export Statistics**: Updated export headers to show complete vs incomplete profile counts
-  - Both CSV and TXT exports now display total, complete, and incomplete profile counts in headers
-  - Country sections show breakdown of complete vs incomplete customers per country
-  - Missing field details are clearly shown for each incomplete profile
-- **Fixed Duplicate Key Warning**: Resolved React console warning for duplicate keys in profile collection display
-  - Updated ProfileCard key generation to use unique combination of customerId and index
-  - Ensures proper React component rendering without key conflicts
-- **Maintained Duplicate Prevention**: Confirmed existing logic prevents duplicate profiles in collection (no changes needed)
-  - `useProfileCollection` hook already handles profile updates by customerId to prevent actual duplicates
-  - Export functions handle both complete and incomplete profiles while maintaining correct sorting
-
-## August 16, 2025 - Major Refactoring Complete + Performance Optimization
-- **Complete Codebase Refactoring**: Restructured the entire frontend application for better maintainability and scalability
-  - Split the monolithic 3,790-line `api-tester.tsx` into 20+ focused, modular files
-  - Implemented proper separation of concerns with dedicated folders for components, hooks, services, utils, types, and features
-  - Created reusable custom hooks for API requests, bulk processing, debug logging, and profile collection
-  - Built dedicated UI components for request forms, response display, bulk results, and debug panels
-  - Established service layer for API communications with specialized Brands for Less service methods
-  - Added comprehensive utility functions for URL construction, currency formatting, date handling, and data export
-  - Implemented feature modules for profile management and file upload functionality
-  - Created centralized configuration management for API endpoints and constants
-  - Added complete TypeScript type definitions for better development experience
-  - Maintained all existing functionality while improving code organization and maintainability
-  - Created comprehensive documentation (REFACTORING-GUIDE.md) explaining the new architecture
-  - Established index files for clean module exports and simplified imports
-  - The new modular structure makes the project much easier to maintain, debug, and extend with new features
-- **Advanced Performance Optimization System**: Implemented comprehensive performance improvements for 3-5x faster bulk processing
-  - **Request Batching**: Process multiple requests in parallel batches of 8 concurrent requests instead of sequential processing
-  - **Intelligent Caching**: Added request caching with configurable TTL (5 min for profiles, 1 min for orders) to reduce redundant API calls
-  - **Promise.allSettled()**: Used for parallel processing of independent API calls with proper error handling
-  - **Rate Limiting**: Implemented 50ms delays between batches to prevent API overwhelming while maintaining high throughput
-  - **Parallel Profile Fetching**: Customer profile data (basic info, addresses, orders, PII) now fetched concurrently instead of sequentially
-  - **Optimized Bulk Processing**: Batch processing for customer profiles with concurrent execution of multiple profile requests
-  - **Performance Monitoring**: Real-time performance metrics tracking with cache hit rates, throughput, and response times
-  - **RequestScheduler Service**: Centralized request management with configurable batch sizes, delays, and timeout handling
-  - **Transparent Implementation**: All performance optimizations maintain exact same data quality and user experience
-  - **Expected Result**: 3-5x faster bulk processing with significantly reduced server load and improved user experience
-- **Enhanced Full Profile Fetching with Complete PII Data**: Integrated new customer PII endpoint to ensure comprehensive customer profile data collection
-  - Added new Step 4 in profile fetching process that calls `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId={customerId}`
-  - This endpoint provides authoritative customer data including birthday, register date, and gender from the customer database
-  - Profile fetching now prioritizes PII endpoint data as the most reliable source for customer information
-  - Enhanced both single profile fetch and bulk processing modes to include the new PII data step
-  - Improved data extraction logic to handle the specific response format (fname/lname, birthday, regDate, gender)
-  - **Fixed PII Endpoint Data Access**: Corrected nested JSON response structure access from `piiData.data[0]` to `piiData.data.data[0]`
-  - Successfully resolved birthday, register date, and gender extraction from PII endpoint
-  - Fallback search endpoint remains as backup option if PII fetch fails or has missing data
-- **Fixed Console Flooding**: Removed excessive console logging that was causing performance issues and console flooding during API requests
-- **Enhanced Export Currency Display**: Updated both CSV and TXT export functions to include proper currency symbols with all monetary amounts
-  - Total purchase amounts now show with currency (e.g., `AED1,450.25` instead of `1450.25`)
-  - Individual order amounts display with appropriate currency symbols
-  - Currency detection uses existing `getActualCurrency()` function for accuracy
-- **Improved Export Sorting**: Modified export functionality to sort countries by customer count (most to least) instead of UAE-first alphabetical
-  - Countries with the highest customer count appear first in exports
-  - Secondary alphabetical sorting for countries with equal customer counts
-  - Applies to both CSV and TXT export formats
-- **Enhanced Profile Export with PII Data**: Added birthday, gender, and registration date fields to both CSV and TXT export functions
-  - CSV exports now include Birthday, Gender, and Registration Date columns positioned after phone number
-  - TXT exports feature organized "PERSONAL INFO" section with birthday, gender, and registration date
-  - Data comes from the integrated PII endpoint for comprehensive customer information
-  - All export formats maintain proper organization and readability
-- **Enhanced Profile Details Display**: Added birthday, gender, and registration date fields to the Customer Profile Details dialog
-  - Profile details now show complete personal information from PII endpoint
-  - Fields are positioned logically in the existing 2-column grid layout
-  - Displays "Not available" when data is missing for proper user feedback
-- **Updated Cancel Order Configuration**: Modified cancel order payload values for both normal and bulk operations
-  - Changed `createdBy` from 1405 to 2457
-  - Changed `assignee` from 92 to 105
-  - Updates apply to both single order cancellation and bulk processing modes
-
-## August 14, 2025
-- Extended HTTP method support to include HEAD, OPTIONS, TRACE, and CONNECT methods
-- Added three new API endpoint presets:
-  - Fetch User SMS Messages: Retrieves SMS messages for a specific phone number
-  - Fetch User Email Messages: Retrieves email messages for a specific email address  
-  - Cancel User Order: Cancels orders using the DELETE method
-- Updated both frontend and backend validation to handle the expanded HTTP method set
-- Enhanced backend request handling to properly exclude request bodies for methods that don't support them (GET, HEAD, OPTIONS)
-- **Added Bulk Processing Mode**: New feature that allows processing multiple values at once
-  - Toggle between single request and bulk mode
-  - Input multiple values (IDs, phone numbers, emails) separated by newlines
-  - Each value automatically replaces the primary parameter in the selected endpoint
-  - Visual results dashboard showing success/failure status for each request
-  - Real-time processing with individual response data and error details
-  - Summary statistics showing total successful vs failed requests
-  - Color-coded results with green (success), red (error), and yellow (pending) indicators
+## Performance Guidelines
+- Throttle UI updates during bulk operations (max every 250-500ms)
+- Limit concurrent requests to 6 maximum
+- Use conservative rate limiting (3 requests/second)
+- Remove or minimize console logging during high-volume operations
+- Implement memory management for large data sets (arrays bounded to 1000 items)

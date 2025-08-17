@@ -170,7 +170,7 @@ export default function ApiTesterRefactored() {
         }
 
         try {
-          const profile = await trackPerformance(async () => await fetchFullProfile(customerId, token));
+          const profile = await trackPerformance(async () => await fetchFullProfile(customerId));
           if (profile) {
             addProfile(profile);
             toast({

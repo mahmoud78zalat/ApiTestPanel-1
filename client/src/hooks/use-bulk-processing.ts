@@ -68,10 +68,10 @@ export const useBulkProcessing = () => {
     options: Partial<BulkProcessingOptions> = {}
   ): Promise<CustomerProfile[]> => {
     const config: BulkProcessingOptions = {
-      batchSize: 12, // Increased batch size by 50% (8 × 1.5 = 12)
-      maxConcurrent: 12,
-      retryAttempts: 3,
-      delayBetweenBatches: 200, // Small delay to prevent overwhelming the API
+      batchSize: 6, // Reduced for stability and to prevent freezing  
+      maxConcurrent: 6,
+      retryAttempts: 2,
+      delayBetweenBatches: 300, // Increased delay to prevent overwhelming the API
       onProgress: () => {},
       onProfileProcessed: () => {},
       onDebugLog: () => {},
