@@ -79,9 +79,9 @@ export function PerformanceMonitor({
     ? (metrics.successfulRequests / metrics.completedRequests) * 100 
     : 0;
 
-  const requestsPerSecond = elapsedTime > 0 
-    ? (metrics.completedRequests / (elapsedTime / 1000)) 
-    : 0;
+  const requestsPerSecond = metrics.profilesPerSecond > 0 
+    ? metrics.profilesPerSecond 
+    : (elapsedTime > 0 ? (metrics.completedRequests / (elapsedTime / 1000)) : 0);
 
   const estimatedTimeRemaining = requestsPerSecond > 0 && metrics.totalRequests > metrics.completedRequests
     ? ((metrics.totalRequests - metrics.completedRequests) / requestsPerSecond) * 1000

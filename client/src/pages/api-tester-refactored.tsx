@@ -271,19 +271,19 @@ export default function ApiTesterRefactored() {
         token,
         collectedProfiles,
         {
-          batchSize: 12,
-          maxConcurrent: 12,
+          batchSize: 6,
+          maxConcurrent: 6,
           retryAttempts: 3,
           delayBetweenBatches: 200,
           onProgress: (state) => {
-            // Update performance monitoring with accurate item-based progress
+            // Update performance monitoring with accurate progress
             updateMetrics({
               totalItems: state.totalItems,
               processedItems: state.processedItems,
               successfulItems: state.successfulItems,
               failedItems: state.failedItems,
-              averageProcessingTime: state.averageProcessingTime || 100,
-              activeConnections: state.currentBatch
+              averageProcessingTime: state.averageProcessingTime || 0,
+              activeConnections: Math.min(state.currentBatch || 0, 6)
             });
             
             logProcessStep(

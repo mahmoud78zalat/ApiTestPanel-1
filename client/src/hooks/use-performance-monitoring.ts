@@ -46,6 +46,7 @@ export const usePerformanceMonitoring = () => {
    */
   const startMonitoring = useCallback((totalRequests: number) => {
     setIsMonitoring(true);
+    lastUpdateTime.current = 0; // Reset throttle timer
     setMetrics({
       totalRequests,
       completedRequests: 0,
@@ -101,7 +102,7 @@ export const usePerformanceMonitoring = () => {
       averageResponseTime: bulkState.averageProcessingTime,
       activeConnections: bulkState.activeConnections,
       profilesPerSecond: bulkState.processedItems > 0 && prev.startTime ? 
-        bulkState.processedItems / ((now - prev.startTime) / 1000) : 0
+        Math.round((bulkState.processedItems / ((now - prev.startTime) / 1000)) * 100) / 100 : 0
     }));
   }, []);
 
@@ -151,7 +152,7 @@ export const usePerformanceMonitoring = () => {
         : 0;
 
       const elapsedTime = now - prev.startTime;
-      const profilesPerSecond = elapsedTime > 0 ? (completedRequests / (elapsedTime / 1000)) : 0;
+      const profilesPerSecond = elapsedTime > 0 ? Math.round((completedRequests / (elapsedTime / 1000)) * 100) / 100 : 0;
 
       return {
         ...prev,
