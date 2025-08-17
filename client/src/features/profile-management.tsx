@@ -330,13 +330,16 @@ function ProfileDetailsView({ profile }: { profile: CustomerProfile }) {
               <div key={index} className="p-3 bg-gray-50 rounded border text-sm">
                 <div className="flex justify-between items-start">
                   <div>
-                    <div><strong>Order ID:</strong> {order.orderId || 'Unknown'}</div>
-                    <div><strong>Date:</strong> {formatDate(order.orderDate)}</div>
-                    <div><strong>Status:</strong> {order.status || 'Unknown'}</div>
+                    <div><strong>Order ID:</strong> {order.orderId || order.id || 'Unknown'}</div>
+                    <div><strong>Date:</strong> {formatDate(order.createDate || order.orderDate)}</div>
+                    <div><strong>Status:</strong> {order.orderStatus || order.shipStatus || order.status || 'Unknown'}</div>
+                    {order.paymentMethod && order.paymentMethod !== 'Unknown' && (
+                      <div><strong>Payment:</strong> {order.paymentMethod}</div>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="font-medium">
-                      {formatCurrency(parseFloat(order.totalAmount || '0'), currency)}
+                      {order.transactionAmount || formatCurrency(parseFloat(order.totalAmount || order.subtotal || '0'), currency)}
                     </div>
                   </div>
                 </div>

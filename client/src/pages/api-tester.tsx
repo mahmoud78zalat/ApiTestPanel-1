@@ -3636,8 +3636,13 @@ Fetched At: ${profile.fetchedAt || 'N/A'}
                                               {order.transactionAmount || order.amount || order.totalAmount || 'N/A'}
                                             </p>
                                             <p className="text-xs text-slate-500">
-                                              {order.shipStatus || order.status || 'Unknown Status'}
+                                              {order.orderStatus || order.shipStatus || order.status || 'Unknown Status'}
                                             </p>
+                                            {order.paymentMethod && order.paymentMethod !== 'Unknown' && (
+                                              <p className="text-xs text-blue-600">
+                                                {order.paymentMethod}
+                                              </p>
+                                            )}
                                           </div>
                                         </div>
                                       </div>

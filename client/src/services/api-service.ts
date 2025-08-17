@@ -385,7 +385,7 @@ export class BrandsForLessService extends ApiService {
               invoiceUrl: null
             };
             
-            // Only fetch additional details if we have an order ID and want enriched data
+            // Always fetch detailed order information to get complete data
             if (orderId) {
               try {
                 const orderDetailsRequest: ApiRequest = {
@@ -394,32 +394,63 @@ export class BrandsForLessService extends ApiService {
                   token: token.trim(),
                 };
                 
-                const orderDetailsData = await this.makeRequest(orderDetailsRequest);
+                const orderDetailsResponse = await this.makeRequest(orderDetailsRequest);
                 
-                if (orderDetailsData.status === 200 && orderDetailsData.data && orderDetailsData.data.data) {
-                  const orderData = orderDetailsData.data.data;
+                if (orderDetailsResponse.status === 200 && orderDetailsResponse.data && orderDetailsResponse.data.data) {
+                  const detailedOrderData = orderDetailsResponse.data.data;
                   
-                  // Extract invoice URL from detailed order data
-                  const invoiceUrl = orderData.invoiceNo ? 
-                    `https://portal.brandsforlessuae.com/invoice/invoice.jsp?invno=${orderData.invoiceNo}` : 
-                    null;
+                  // Extract comprehensive order information from detailed API response
+                  const enhancedOrderStatus = detailedOrderData.shipStatus || 
+                                            detailedOrderData.orderStatus || 
+                                            detailedOrderData.status || 
+                                            orderStatus;
                   
-                  // Get enhanced status if available
-                  const enhancedStatus = orderData.shipStatus || 
-                                       orderData.status || 
-                                       orderData.orderStatus || 
-                                       orderStatus;
+                  // Extract proper transaction amount from detailed data
+                  let enhancedTransactionAmount = transactionAmount;
+                  if (detailedOrderData.subtotal) {
+                    enhancedTransactionAmount = `AED ${detailedOrderData.subtotal}`;
+                  } else if (detailedOrderData.transactionAmount) {
+                    enhancedTransactionAmount = `AED ${detailedOrderData.transactionAmount}`;
+                  }
+                  
+                  // Extract invoice URL from detailed response
+                  const invoiceUrl = detailedOrderData.invoiceUrl || 
+                                   (detailedOrderData.invoiceNo ? 
+                                     `https://portal.brandsforlessuae.com/invoice/invoice.jsp?invno=${detailedOrderData.invoiceNo}` : 
+                                     null);
+                  
+                  // Extract payment method information
+                  const paymentMethod = detailedOrderData.paymentExtraInfo || 
+                                      detailedOrderData.paymentType || 
+                                      detailedOrderData.paymentMethod || 
+                                      detailedOrderData.paymentGateWay || 
+                                      'Unknown';
+                  
+                  // Extract proper order date from detailed data
+                  const enhancedOrderDate = detailedOrderData.createdTime || 
+                                          detailedOrderData.createDate || 
+                                          detailedOrderData.orderDate || 
+                                          orderDate;
                   
                   return {
                     ...baseOrder,
+                    // Override with enhanced data from detailed API response
+                    createDate: enhancedOrderDate,
+                    orderDate: enhancedOrderDate,
+                    transactionAmount: enhancedTransactionAmount,
+                    orderStatus: enhancedOrderStatus,
+                    shipStatus: enhancedOrderStatus,
+                    paymentMethod: paymentMethod,
+                    paymentExtraInfo: paymentMethod,
                     invoiceUrl: invoiceUrl,
-                    orderStatus: enhancedStatus,
-                    shipStatus: enhancedStatus,
-                    enrichedData: orderData
+                    subtotal: detailedOrderData.subtotal || detailedOrderData.transactionAmount,
+                    enrichedData: detailedOrderData
                   };
+                } else {
+                  console.warn(`Order details API returned error for ${orderId}:`, orderDetailsResponse.status, orderDetailsResponse.data?.message);
                 }
               } catch (error) {
-                console.warn(`Failed to fetch enhanced details for order ${orderId}:`, error);
+                console.warn(`Failed to fetch detailed order data for ${orderId}:`, error);
               }
             }
             
