@@ -1,8 +1,8 @@
 /**
- * Export Utility Functions - Complete Fix
+ * Export Utility Functions - Fixed Version
  * 
  * This module provides utilities for exporting customer profile data to various formats
- * with proper order amount, status, payment field, and address handling
+ * with proper order amount, status, and payment field handling
  */
 
 import type { CustomerProfile } from "@shared/schema";
@@ -62,39 +62,7 @@ const extractPaymentMethod = (order: any): string => {
          order.payment || 
          order.paymentType || 
          order.method ||
-         order.paymentExtraInfo ||
-         order.paymentGateWay ||
          'Not available';
-};
-
-/**
- * Helper function to extract address line from address object
- */
-const extractAddressLine = (addr: any): string => {
-  return addr.addressLine1 || 
-         addr.address || 
-         addr.fullAddress || 
-         addr.street ||
-         addr.streetAddress ||
-         'No address';
-};
-
-/**
- * Helper function to extract city from address object
- */
-const extractCity = (addr: any): string => {
-  return addr.city || 
-         addr.cityName || 
-         'Unknown';
-};
-
-/**
- * Helper function to extract country from address object
- */
-const extractCountry = (addr: any): string => {
-  return addr.country || 
-         addr.countryName || 
-         'Unknown';
 };
 
 /**
@@ -150,7 +118,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
   const groupProfilesByCountry = (profileList: CustomerProfile[]) => {
     return profileList.reduce((acc, profile) => {
       // First try to get country from address
-      let country = profile.addresses?.[0] ? extractCountry(profile.addresses[0]) : undefined;
+      let country = profile.addresses?.[0]?.country;
       
       // If no address country, try to determine from currency
       if (!country || country === 'Unknown') {
@@ -206,9 +174,9 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         profile.totalOrdersCount?.toString() || '0',
         formatCurrency(profile.totalPurchasesAmount, currency),
         profile.addresses?.length?.toString() || '0',
-        `"${primaryAddress ? extractAddressLine(primaryAddress) : ''}"`,
-        primaryAddress ? extractCity(primaryAddress) : '',
-        primaryAddress ? extractCountry(primaryAddress) : country,
+        `"${primaryAddress?.address || ''}"`,
+        primaryAddress?.city || '',
+        primaryAddress?.country || country,
         'Complete',
         '',
         // First 3 orders with proper field extraction
@@ -246,9 +214,9 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         profile.totalOrdersCount?.toString() || '0',
         formatCurrency(profile.totalPurchasesAmount, currency),
         profile.addresses?.length?.toString() || '0',
-        `"${primaryAddress ? extractAddressLine(primaryAddress) : ''}"`,
-        primaryAddress ? extractCity(primaryAddress) : '',
-        primaryAddress ? extractCountry(primaryAddress) : country,
+        `"${primaryAddress?.address || ''}"`,
+        primaryAddress?.city || '',
+        primaryAddress?.country || country,
         'Incomplete',
         `"${incompleteReasons.join('; ')}"`,
         // First 3 orders with proper field extraction for incomplete profiles
@@ -292,7 +260,7 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
   const groupProfilesByCountry = (profileList: CustomerProfile[]) => {
     return profileList.reduce((acc, profile) => {
       // First try to get country from address
-      let country = profile.addresses?.[0] ? extractCountry(profile.addresses[0]) : undefined;
+      let country = profile.addresses?.[0]?.country;
       
       // If no address country, try to determine from currency
       if (!country || country === 'Unknown') {
@@ -361,14 +329,8 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         if (profile.addresses && profile.addresses.length > 0) {
           content += `\nADDRESSES (${profile.addresses.length}):\n`;
           profile.addresses.forEach((addr, idx) => {
-            const addressLine = extractAddressLine(addr);
-            const city = extractCity(addr);
-            const country = extractCountry(addr);
-            
-            content += `  ${idx + 1}. ${addressLine}\n`;
-            content += `     City: ${city}, Country: ${country}\n`;
-            if (addr.area) content += `     Area: ${addr.area}\n`;
-            if (addr.zipcode || addr.zipCode) content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
+            content += `  ${idx + 1}. ${addr.address || 'No address'}\n`;
+            content += `     City: ${addr.city || 'Unknown'}, Country: ${addr.country || 'Unknown'}\n`;
           });
         } else {
           content += `\nADDRESSES: None saved\n`;
@@ -430,14 +392,8 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         if (profile.addresses && profile.addresses.length > 0) {
           content += `\nADDRESSES (${profile.addresses.length}):\n`;
           profile.addresses.forEach((addr, idx) => {
-            const addressLine = extractAddressLine(addr);
-            const city = extractCity(addr);
-            const country = extractCountry(addr);
-            
-            content += `  ${idx + 1}. ${addressLine}\n`;
-            content += `     City: ${city}, Country: ${country}\n`;
-            if (addr.area) content += `     Area: ${addr.area}\n`;
-            if (addr.zipcode || addr.zipCode) content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
+            content += `  ${idx + 1}. ${addr.address || 'No address'}\n`;
+            content += `     City: ${addr.city || 'Unknown'}, Country: ${addr.country || 'Unknown'}\n`;
           });
         } else {
           content += `\nADDRESSES: None saved\n`;
