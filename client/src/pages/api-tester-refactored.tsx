@@ -177,6 +177,12 @@ export default function ApiTesterRefactored() {
               title: "Profile Collected",
               description: `Successfully collected profile for customer ${customerId}`,
             });
+          } else {
+            toast({
+              title: "No Data Found",
+              description: `No valid data found for customer ${customerId}`,
+              variant: "destructive",
+            });
           }
           stopMonitoring();
         } catch (error) {

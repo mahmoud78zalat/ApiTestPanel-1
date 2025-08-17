@@ -73,18 +73,18 @@ export const useApiRequest = () => {
    * Full profile fetching mutation for complex multi-endpoint requests
    */
   const profileFetchMutation = useMutation({
-    mutationFn: async (customerId: string): Promise<CustomerProfile> => {
+    mutationFn: async (customerId: string): Promise<CustomerProfile | null> => {
       const profileData = await BrandsForLessService.fetchCustomerProfile(customerId, token);
       
+      // Return null if no valid data found - this allows caller to handle appropriately
       if (!profileData) {
-        throw new Error('No profile data returned from API');
+        return null;
       }
 
       // The BrandsForLessService now returns the complete profile directly
-      // No need for complex extraction - just ensure it has the required fields
       const profile: CustomerProfile = {
         customerId: profileData.customerId || customerId,
-        fullName: profileData.fullName || "Unknown Customer",
+        fullName: profileData.fullName,
         addresses: profileData.addresses || [],
         birthDate: profileData.birthDate,
         phoneNumber: profileData.phoneNumber || "",
@@ -142,7 +142,7 @@ export const useApiRequest = () => {
   }, [requestMutation]);
 
   /**
-   * Fetches a complete customer profile
+   * Fetches a complete customer profile - returns null if no valid data found
    */
   const fetchFullProfile = useCallback((customerId: string) => {
     return profileFetchMutation.mutateAsync(customerId);

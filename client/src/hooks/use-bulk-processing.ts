@@ -290,7 +290,11 @@ export const useBulkProcessing = () => {
             
             return profile;
           } else {
-            throw new Error('No profile data returned');
+            // Skip customers with no valid data - don't treat as error
+            config.onDebugLog('info', `⏭️ Skipped: ${customerId}`, {
+              reason: 'No valid customer data found'
+            });
+            return null;
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -321,8 +325,16 @@ export const useBulkProcessing = () => {
       return null;
     });
 
-    // Wait for all concurrent requests to complete
-    await Promise.allSettled(promises);
+    // Wait for all concurrent requests to complete and filter out null results
+    const results = await Promise.allSettled(promises);
+    
+    // Filter out nulls and failed promises - we only want actual profiles
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value === null) {
+        // This was a skipped customer (no valid data), don't count as failure
+        config.onDebugLog('info', `⏭️ Customer skipped (no valid data): ${batchIds[index]}`);
+      }
+    });
 
     return { profiles, failures, duplicates };
   };

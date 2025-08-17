@@ -534,9 +534,29 @@ export class BrandsForLessService extends ApiService {
       // PII fetch failed silently
     }
 
-    // Final validation
+    // Final validation - skip customers with insufficient data
+    const hasValidData = (
+      profile.fullName && 
+      profile.fullName.trim() !== "" && 
+      profile.fullName !== "Unknown Customer"
+    ) || (
+      profile.email && profile.email.trim() !== ""
+    ) || (
+      profile.phoneNumber && profile.phoneNumber.trim() !== ""
+    ) || (
+      profile.addresses && profile.addresses.length > 0
+    ) || (
+      profile.latestOrders && profile.latestOrders.length > 0
+    );
+
+    // If no valid data found, return null to skip this customer
+    if (!hasValidData) {
+      return null;
+    }
+
+    // Ensure we have at least a fallback name if we have other valid data
     if (!profile.fullName || profile.fullName.trim() === "") {
-      profile.fullName = "Unknown Customer";
+      profile.fullName = "Customer " + profileId;
     }
 
     const endTime = performance.now();

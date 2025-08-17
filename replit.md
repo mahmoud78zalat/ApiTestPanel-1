@@ -16,6 +16,7 @@ A professional API testing and customer profile management platform for Brands f
 - **Bulk Request Optimization**: Reduced concurrent request limits and added throttling to prevent UI freezing during 700+ requests
 - **Performance Monitor Enhancement**: Implemented throttled updates and optimized rendering for high-volume operations
 - **Request Scheduler Improvements**: Reduced concurrent connections from 8 to 6 and requests per second from 5 to 3 for better stability
+- **Data Quality Improvement**: Skip customers with insufficient data instead of creating "Unknown Customer" fallback entries
 
 ## User Preferences
 - Performance is critical - avoid verbose logging during bulk operations
