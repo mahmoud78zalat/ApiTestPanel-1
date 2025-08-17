@@ -6,7 +6,8 @@
 
 import type { CustomerProfile } from "@shared/schema";
 import { formatDate } from "./date-utils";
-import { formatCurrency, getActualCurrency } from "./currency-utils";
+import { formatCurrency, getActualCurrency, getCountryFromCurrency } from "./currency-utils";
+import { categorizeProfiles, getIncompleteReasons } from "./profile-validation";
 
 /**
  * Export formats supported by the application
@@ -37,6 +38,8 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
     'Primary Address',
     'Primary City',
     'Primary Country',
+    'Profile Status',
+    'Missing Fields',
     'Order 1 ID',
     'Order 1 Date',
     'Order 1 Amount',
@@ -54,29 +57,57 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
     'Order 3 Invoice URL'
   ];
 
-  // Group profiles by country and sort by customer count
-  const profilesByCountry = profiles.reduce((acc, profile) => {
-    const country = profile.addresses?.[0]?.country || 'Unknown';
-    if (!acc[country]) acc[country] = [];
-    acc[country].push(profile);
-    return acc;
-  }, {} as Record<string, CustomerProfile[]>);
+  // Categorize profiles into complete and incomplete
+  const { complete, incomplete } = categorizeProfiles(profiles);
 
-  const sortedCountries = Object.entries(profilesByCountry)
-    .sort(([, a], [, b]) => b.length - a.length)
-    .map(([country]) => country);
+  // Group profiles by country with improved country detection
+  const groupProfilesByCountry = (profileList: CustomerProfile[]) => {
+    return profileList.reduce((acc, profile) => {
+      // First try to get country from address
+      let country = profile.addresses?.[0]?.country;
+      
+      // If no address country, try to determine from currency
+      if (!country || country === 'Unknown') {
+        country = getCountryFromCurrency(profile.latestOrders || []);
+      }
+      
+      // Fallback to 'Unknown' if still not found
+      if (!country) country = 'Unknown';
+      
+      if (!acc[country]) acc[country] = [];
+      acc[country].push(profile);
+      return acc;
+    }, {} as Record<string, CustomerProfile[]>);
+  };
+
+  const completeProfilesByCountry = groupProfilesByCountry(complete);
+  const incompleteProfilesByCountry = groupProfilesByCountry(incomplete);
+
+  // Get all countries and sort by total customer count
+  const allCountries = new Set([
+    ...Object.keys(completeProfilesByCountry),
+    ...Object.keys(incompleteProfilesByCountry)
+  ]);
+
+  const sortedCountries = Array.from(allCountries).sort((a, b) => {
+    const aTotal = (completeProfilesByCountry[a]?.length || 0) + (incompleteProfilesByCountry[a]?.length || 0);
+    const bTotal = (completeProfilesByCountry[b]?.length || 0) + (incompleteProfilesByCountry[b]?.length || 0);
+    return bTotal - aTotal;
+  });
 
   // Generate CSV rows
   let csvContent = headers.join(',') + '\n';
 
   for (const country of sortedCountries) {
-    const countryProfiles = profilesByCountry[country]
-      // Sort profiles within each country by spending (highest first)
+    // First add complete profiles for this country
+    const countryCompleteProfiles = completeProfilesByCountry[country] || [];
+    const sortedCompleteProfiles = countryCompleteProfiles
       .sort((a, b) => (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0));
     
-    for (const profile of countryProfiles) {
+    for (const profile of sortedCompleteProfiles) {
       const currency = getActualCurrency(profile.latestOrders);
       const primaryAddress = profile.addresses?.[0];
+      const incompleteReasons = getIncompleteReasons(profile);
       
       const row = [
         profile.customerId,
@@ -91,9 +122,50 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         profile.addresses?.length?.toString() || '0',
         `"${primaryAddress?.address || ''}"`,
         primaryAddress?.city || '',
-        primaryAddress?.country || '',
+        primaryAddress?.country || country,
+        'Complete',
+        '',
         // First 3 orders
-        ...(profile.latestOrders?.slice(0, 3).flatMap(order => [
+        ...(profile.latestOrders?.slice(0, 3).flatMap((order: any) => [
+          order.orderId || '',
+          formatDate(order.orderDate),
+          formatCurrency(parseFloat(order.totalAmount || '0'), currency),
+          order.status || '',
+          order.invoiceUrl || ''
+        ]) || Array(15).fill(''))
+      ];
+
+      csvContent += row.join(',') + '\n';
+    }
+
+    // Then add incomplete profiles for this country
+    const countryIncompleteProfiles = incompleteProfilesByCountry[country] || [];
+    const sortedIncompleteProfiles = countryIncompleteProfiles
+      .sort((a, b) => (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0));
+    
+    for (const profile of sortedIncompleteProfiles) {
+      const currency = getActualCurrency(profile.latestOrders);
+      const primaryAddress = profile.addresses?.[0];
+      const incompleteReasons = getIncompleteReasons(profile);
+      
+      const row = [
+        profile.customerId,
+        `"${profile.fullName}"`,
+        profile.email || '',
+        profile.phoneNumber || '',
+        formatDate(profile.birthDate),
+        profile.gender || '',
+        formatDate(profile.registerDate),
+        profile.totalOrdersCount?.toString() || '0',
+        formatCurrency(profile.totalPurchasesAmount, currency),
+        profile.addresses?.length?.toString() || '0',
+        `"${primaryAddress?.address || ''}"`,
+        primaryAddress?.city || '',
+        primaryAddress?.country || country,
+        'Incomplete',
+        `"${incompleteReasons.join('; ')}"`,
+        // First 3 orders
+        ...(profile.latestOrders?.slice(0, 3).flatMap((order: any) => [
           order.orderId || '',
           formatDate(order.orderDate),
           formatCurrency(parseFloat(order.totalAmount || '0'), currency),
@@ -118,70 +190,165 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
 export const exportToTXT = (profiles: CustomerProfile[]): string => {
   if (profiles.length === 0) return 'No customer profiles to export.';
 
+  // Categorize profiles into complete and incomplete
+  const { complete, incomplete } = categorizeProfiles(profiles);
+
   let content = `CUSTOMER PROFILE EXPORT REPORT\n`;
   content += `Generated: ${new Date().toLocaleString()}\n`;
   content += `Total Profiles: ${profiles.length}\n`;
+  content += `Complete Profiles: ${complete.length}\n`;
+  content += `Incomplete Profiles: ${incomplete.length}\n`;
   content += `${'='.repeat(80)}\n\n`;
 
-  // Group by country and sort by customer count
-  const profilesByCountry = profiles.reduce((acc, profile) => {
-    const country = profile.addresses?.[0]?.country || 'Unknown';
-    if (!acc[country]) acc[country] = [];
-    acc[country].push(profile);
-    return acc;
-  }, {} as Record<string, CustomerProfile[]>);
+  // Group profiles by country with improved country detection
+  const groupProfilesByCountry = (profileList: CustomerProfile[]) => {
+    return profileList.reduce((acc, profile) => {
+      // First try to get country from address
+      let country = profile.addresses?.[0]?.country;
+      
+      // If no address country, try to determine from currency
+      if (!country || country === 'Unknown') {
+        country = getCountryFromCurrency(profile.latestOrders || []);
+      }
+      
+      // Fallback to 'Unknown' if still not found
+      if (!country) country = 'Unknown';
+      
+      if (!acc[country]) acc[country] = [];
+      acc[country].push(profile);
+      return acc;
+    }, {} as Record<string, CustomerProfile[]>);
+  };
 
-  const sortedCountries = Object.entries(profilesByCountry)
-    .sort(([, a], [, b]) => b.length - a.length);
+  const completeProfilesByCountry = groupProfilesByCountry(complete);
+  const incompleteProfilesByCountry = groupProfilesByCountry(incomplete);
 
-  for (const [country, countryProfiles] of sortedCountries) {
-    content += `COUNTRY: ${country} (${countryProfiles.length} customers)\n`;
-    content += `${'-'.repeat(60)}\n\n`;
+  // Get all countries and sort by total customer count
+  const allCountries = new Set([
+    ...Object.keys(completeProfilesByCountry),
+    ...Object.keys(incompleteProfilesByCountry)
+  ]);
 
-    // Sort profiles within each country by spending (highest first)
-    const sortedCountryProfiles = countryProfiles.sort((a, b) => 
+  const sortedCountries = Array.from(allCountries).sort((a, b) => {
+    const aTotal = (completeProfilesByCountry[a]?.length || 0) + (incompleteProfilesByCountry[a]?.length || 0);
+    const bTotal = (completeProfilesByCountry[b]?.length || 0) + (incompleteProfilesByCountry[b]?.length || 0);
+    return bTotal - aTotal;
+  });
+
+  for (const country of sortedCountries) {
+    const completeCount = completeProfilesByCountry[country]?.length || 0;
+    const incompleteCount = incompleteProfilesByCountry[country]?.length || 0;
+    const totalCount = completeCount + incompleteCount;
+
+    content += `COUNTRY: ${country} (${totalCount} customers - ${completeCount} complete, ${incompleteCount} incomplete)\n`;
+    content += `${'-'.repeat(80)}\n\n`;
+
+    // First add complete profiles
+    const countryCompleteProfiles = completeProfilesByCountry[country] || [];
+    const sortedCompleteProfiles = countryCompleteProfiles.sort((a, b) => 
       (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0)
     );
 
-    for (const profile of sortedCountryProfiles) {
-      const currency = getActualCurrency(profile.latestOrders);
-      
-      content += `Customer ID: ${profile.customerId}\n`;
-      content += `Full Name: ${profile.fullName}\n`;
-      
-      content += `\nPERSONAL INFO:\n`;
-      content += `  Email: ${profile.email || 'Not available'}\n`;
-      content += `  Phone: ${profile.phoneNumber || 'Not available'}\n`;
-      content += `  Birthday: ${formatDate(profile.birthDate)}\n`;
-      content += `  Gender: ${profile.gender || 'Not available'}\n`;
-      content += `  Registration Date: ${formatDate(profile.registerDate)}\n`;
-      
-      content += `\nORDER SUMMARY:\n`;
-      content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
-      content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
-      
-      if (profile.addresses && profile.addresses.length > 0) {
-        content += `\nADDRESSES (${profile.addresses.length}):\n`;
-        profile.addresses.forEach((addr, idx) => {
-          content += `  ${idx + 1}. ${addr.address || 'No address'}\n`;
-          content += `     City: ${addr.city || 'Unknown'}, Country: ${addr.country || 'Unknown'}\n`;
-        });
+    if (sortedCompleteProfiles.length > 0) {
+      content += `COMPLETE PROFILES (${sortedCompleteProfiles.length}):\n`;
+      content += `${'-'.repeat(40)}\n\n`;
+
+      for (const profile of sortedCompleteProfiles) {
+        const currency = getActualCurrency(profile.latestOrders);
+        
+        content += `Customer ID: ${profile.customerId}\n`;
+        content += `Full Name: ${profile.fullName}\n`;
+        
+        content += `\nPERSONAL INFO:\n`;
+        content += `  Email: ${profile.email || 'Not available'}\n`;
+        content += `  Phone: ${profile.phoneNumber || 'Not available'}\n`;
+        content += `  Birthday: ${formatDate(profile.birthDate)}\n`;
+        content += `  Gender: ${profile.gender || 'Not available'}\n`;
+        content += `  Registration Date: ${formatDate(profile.registerDate)}\n`;
+        
+        content += `\nORDER SUMMARY:\n`;
+        content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
+        content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
+        
+        if (profile.addresses && profile.addresses.length > 0) {
+          content += `\nADDRESSES (${profile.addresses.length}):\n`;
+          profile.addresses.forEach((addr, idx) => {
+            content += `  ${idx + 1}. ${addr.address || 'No address'}\n`;
+            content += `     City: ${addr.city || 'Unknown'}, Country: ${addr.country || 'Unknown'}\n`;
+          });
+        }
+        
+        if (profile.latestOrders && profile.latestOrders.length > 0) {
+          content += `\nRECENT ORDERS (${Math.min(profile.latestOrders.length, 5)}):\n`;
+          profile.latestOrders.slice(0, 5).forEach((order: any, idx) => {
+            content += `  ${idx + 1}. Order ${order.orderId || 'Unknown'}\n`;
+            content += `     Date: ${formatDate(order.orderDate)}\n`;
+            content += `     Amount: ${formatCurrency(parseFloat(order.totalAmount || '0'), currency)}\n`;
+            content += `     Status: ${order.status || 'Unknown'}\n`;
+            if (order.invoiceUrl) {
+              content += `     Invoice: ${order.invoiceUrl}\n`;
+            }
+          });
+        }
+        
+        content += `\n${'-'.repeat(40)}\n\n`;
       }
-      
-      if (profile.latestOrders && profile.latestOrders.length > 0) {
-        content += `\nRECENT ORDERS (${Math.min(profile.latestOrders.length, 5)}):\n`;
-        profile.latestOrders.slice(0, 5).forEach((order, idx) => {
-          content += `  ${idx + 1}. Order ${order.orderId || 'Unknown'}\n`;
-          content += `     Date: ${formatDate(order.orderDate)}\n`;
-          content += `     Amount: ${formatCurrency(parseFloat(order.totalAmount || '0'), currency)}\n`;
-          content += `     Status: ${order.status || 'Unknown'}\n`;
-          if (order.invoiceUrl) {
-            content += `     Invoice: ${order.invoiceUrl}\n`;
-          }
-        });
+    }
+
+    // Then add incomplete profiles for this country
+    const countryIncompleteProfiles = incompleteProfilesByCountry[country] || [];
+    const sortedIncompleteProfiles = countryIncompleteProfiles.sort((a, b) => 
+      (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0)
+    );
+
+    if (sortedIncompleteProfiles.length > 0) {
+      content += `INCOMPLETE PROFILES (${sortedIncompleteProfiles.length}):\n`;
+      content += `${'-'.repeat(40)}\n\n`;
+
+      for (const profile of sortedIncompleteProfiles) {
+        const currency = getActualCurrency(profile.latestOrders);
+        const incompleteReasons = getIncompleteReasons(profile);
+        
+        content += `Customer ID: ${profile.customerId}\n`;
+        content += `Full Name: ${profile.fullName}\n`;
+        content += `Missing Information: ${incompleteReasons.join(', ')}\n`;
+        
+        content += `\nPERSONAL INFO:\n`;
+        content += `  Email: ${profile.email || 'Not available'}\n`;
+        content += `  Phone: ${profile.phoneNumber || 'Not available'}\n`;
+        content += `  Birthday: ${formatDate(profile.birthDate)}\n`;
+        content += `  Gender: ${profile.gender || 'Not available'}\n`;
+        content += `  Registration Date: ${formatDate(profile.registerDate)}\n`;
+        
+        content += `\nORDER SUMMARY:\n`;
+        content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
+        content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
+        
+        if (profile.addresses && profile.addresses.length > 0) {
+          content += `\nADDRESSES (${profile.addresses.length}):\n`;
+          profile.addresses.forEach((addr, idx) => {
+            content += `  ${idx + 1}. ${addr.address || 'No address'}\n`;
+            content += `     City: ${addr.city || 'Unknown'}, Country: ${addr.country || 'Unknown'}\n`;
+          });
+        } else {
+          content += `\nADDRESSES: None saved\n`;
+        }
+        
+        if (profile.latestOrders && profile.latestOrders.length > 0) {
+          content += `\nRECENT ORDERS (${Math.min(profile.latestOrders.length, 5)}):\n`;
+          profile.latestOrders.slice(0, 5).forEach((order: any, idx) => {
+            content += `  ${idx + 1}. Order ${order.orderId || 'Unknown'}\n`;
+            content += `     Date: ${formatDate(order.orderDate)}\n`;
+            content += `     Amount: ${formatCurrency(parseFloat(order.totalAmount || '0'), currency)}\n`;
+            content += `     Status: ${order.status || 'Unknown'}\n`;
+            if (order.invoiceUrl) {
+              content += `     Invoice: ${order.invoiceUrl}\n`;
+            }
+          });
+        }
+        
+        content += `\n${'-'.repeat(40)}\n\n`;
       }
-      
-      content += `\n${'-'.repeat(40)}\n\n`;
     }
   }
 

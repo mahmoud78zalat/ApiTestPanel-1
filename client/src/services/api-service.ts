@@ -525,8 +525,13 @@ export class BrandsForLessService extends ApiService {
         if (customerPiiData.gender) {
           profile.gender = customerPiiData.gender;
         }
-        if (customerPiiData.regDate || customerPiiData.registrationDate || customerPiiData.createdAt) {
-          profile.registerDate = customerPiiData.regDate || customerPiiData.registrationDate || customerPiiData.createdAt;
+        // Fix registration date mapping - ensure we capture regDate properly
+        if (customerPiiData.regDate) {
+          profile.registerDate = customerPiiData.regDate;
+        } else if (customerPiiData.registrationDate) {
+          profile.registerDate = customerPiiData.registrationDate;
+        } else if (customerPiiData.createdAt) {
+          profile.registerDate = customerPiiData.createdAt;
         }
         
         // Extract missing contact info from PII source
@@ -551,7 +556,10 @@ export class BrandsForLessService extends ApiService {
           birthday: profile.birthDate,
           gender: profile.gender, 
           registerDate: profile.registerDate,
-          fullName: profile.fullName
+          fullName: profile.fullName,
+          rawRegDate: customerPiiData.regDate,
+          rawRegistrationDate: customerPiiData.registrationDate,
+          rawCreatedAt: customerPiiData.createdAt
         });
       } else {
         console.warn("❌ PII endpoint returned no data or error:", piiResponse.status, piiResponse.data?.message);

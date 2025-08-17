@@ -47,6 +47,32 @@ The application uses a monorepo structure with shared TypeScript schemas between
 
 # Recent Changes
 
+## August 17, 2025 - Registration Date Fix + Enhanced Profile Export with Incomplete Profile Detection
+- **Fixed Registration Date Display Issue**: Resolved the problem where "Registration: Not available" was showing despite regDate being present in API responses
+  - Updated PII data extraction logic in `fetchCustomerProfile` to properly handle regDate field mapping
+  - Added enhanced logging to track raw API response fields (regDate, registrationDate, createdAt) for debugging
+  - Now correctly displays registration dates from the customer/api/v1/user endpoint which contains the regDate field
+- **Enhanced Country Detection**: Added intelligent country determination using currency fallback when address data is unavailable
+  - Added `getCountryFromCurrency()` utility function to map currencies (AED, USD, EUR, etc.) to countries  
+  - Profile export now uses both address and currency data for more accurate country classification
+  - Supports UAE, USA, Europe, UK, Saudi Arabia, Qatar, Kuwait, Bahrain, and Oman currency detection
+- **Incomplete Profile Detection and Organization**: Implemented comprehensive incomplete profile identification and separate handling
+  - Added `profile-validation.ts` utility with functions to detect incomplete profiles (missing address, birth date, or gender)
+  - Updated both CSV and TXT export functions to categorize and separate complete vs incomplete profiles
+  - Incomplete profiles are now placed at the end of export files with clear labeling and missing field identification
+  - Added "Profile Status" and "Missing Fields" columns to CSV exports for better data organization
+  - TXT exports now include separate sections for complete and incomplete profiles with detailed missing information
+- **Enhanced Export Statistics**: Updated export headers to show complete vs incomplete profile counts
+  - Both CSV and TXT exports now display total, complete, and incomplete profile counts in headers
+  - Country sections show breakdown of complete vs incomplete customers per country
+  - Missing field details are clearly shown for each incomplete profile
+- **Fixed Duplicate Key Warning**: Resolved React console warning for duplicate keys in profile collection display
+  - Updated ProfileCard key generation to use unique combination of customerId and index
+  - Ensures proper React component rendering without key conflicts
+- **Maintained Duplicate Prevention**: Confirmed existing logic prevents duplicate profiles in collection (no changes needed)
+  - `useProfileCollection` hook already handles profile updates by customerId to prevent actual duplicates
+  - Export functions handle both complete and incomplete profiles while maintaining correct sorting
+
 ## August 16, 2025 - Major Refactoring Complete + Performance Optimization
 - **Complete Codebase Refactoring**: Restructured the entire frontend application for better maintainability and scalability
   - Split the monolithic 3,790-line `api-tester.tsx` into 20+ focused, modular files

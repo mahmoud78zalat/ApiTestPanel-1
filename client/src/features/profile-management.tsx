@@ -167,7 +167,7 @@ export function ProfileManagement({
         <div className="space-y-3 max-h-96 overflow-y-auto">
           {sortedProfiles.map((profile, index) => (
             <ProfileCard
-              key={profile.customerId}
+              key={`profile-${profile.customerId}-${index}`}
               profile={profile}
               onRemove={() => onRemoveProfile(profile.customerId)}
             />

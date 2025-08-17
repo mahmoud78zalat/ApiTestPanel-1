@@ -69,3 +69,38 @@ export const parseCurrency = (currencyString: string): number => {
   
   return isNaN(parsed) ? 0 : parsed;
 };
+
+/**
+ * Determines country based on currency from orders
+ * 
+ * @param orders - Array of order objects
+ * @returns Country string based on currency detection
+ */
+export const getCountryFromCurrency = (orders: any[]): string => {
+  if (!orders || orders.length === 0) return 'Unknown';
+  
+  const currency = getActualCurrency(orders);
+  
+  // Map currencies to countries
+  if (currency.includes('AED')) {
+    return 'UAE';
+  } else if (currency.includes('USD') || currency === '$') {
+    return 'USA';
+  } else if (currency.includes('EUR')) {
+    return 'Europe';
+  } else if (currency.includes('GBP')) {
+    return 'UK';
+  } else if (currency.includes('SAR')) {
+    return 'Saudi Arabia';
+  } else if (currency.includes('QAR')) {
+    return 'Qatar';
+  } else if (currency.includes('KWD')) {
+    return 'Kuwait';
+  } else if (currency.includes('BHD')) {
+    return 'Bahrain';
+  } else if (currency.includes('OMR')) {
+    return 'Oman';
+  }
+  
+  return 'Unknown';
+};
