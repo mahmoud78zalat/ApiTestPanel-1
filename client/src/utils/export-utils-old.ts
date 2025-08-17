@@ -1,8 +1,7 @@
 /**
- * Export Utility Functions - Fixed Version
+ * Export Utility Functions
  * 
  * This module provides utilities for exporting customer profile data to various formats
- * with proper order amount, status, and payment field handling
  */
 
 import type { CustomerProfile } from "@shared/schema";
@@ -16,56 +15,6 @@ import { categorizeProfiles, getIncompleteReasons } from "./profile-validation";
 export type ExportFormat = 'csv' | 'txt';
 
 /**
- * Helper function to extract order amount from various fields
- */
-const extractOrderAmount = (order: any): number => {
-  // Try transactionAmount first (most reliable)
-  if (order.transactionAmount) {
-    if (typeof order.transactionAmount === 'string') {
-      const matches = order.transactionAmount.match(/[\d.]+/);
-      if (matches) {
-        return parseFloat(matches[0]);
-      }
-    } else if (typeof order.transactionAmount === 'number') {
-      return order.transactionAmount;
-    }
-  }
-  
-  // Fallback to other amount fields
-  if (order.totalAmount && !isNaN(parseFloat(order.totalAmount))) {
-    return parseFloat(order.totalAmount);
-  }
-  
-  if (order.amount && !isNaN(parseFloat(order.amount))) {
-    return parseFloat(order.amount);
-  }
-  
-  return 0;
-};
-
-/**
- * Helper function to extract order status from various fields
- */
-const extractOrderStatus = (order: any): string => {
-  return order.shipStatus || 
-         order.orderStatus || 
-         order.status || 
-         order.deliveryStatus || 
-         'Unknown';
-};
-
-/**
- * Helper function to extract payment method from order
- */
-const extractPaymentMethod = (order: any): string => {
-  return order.paymentMethod || 
-         order.payment || 
-         order.paymentType || 
-         order.method ||
-         'Not available';
-};
-
-/**
  * Exports customer profiles to CSV format
  * 
  * @param profiles - Array of customer profiles to export
@@ -74,7 +23,7 @@ const extractPaymentMethod = (order: any): string => {
 export const exportToCSV = (profiles: CustomerProfile[]): string => {
   if (profiles.length === 0) return '';
 
-  // CSV Headers including payment information
+  // CSV Headers
   const headers = [
     'Customer ID',
     'Full Name',
@@ -95,19 +44,16 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
     'Order 1 Date',
     'Order 1 Amount',
     'Order 1 Status',
-    'Order 1 Payment',
     'Order 1 Invoice URL',
     'Order 2 ID',
     'Order 2 Date', 
     'Order 2 Amount',
     'Order 2 Status',
-    'Order 2 Payment',
     'Order 2 Invoice URL',
     'Order 3 ID',
     'Order 3 Date',
     'Order 3 Amount',
     'Order 3 Status', 
-    'Order 3 Payment',
     'Order 3 Invoice URL'
   ];
 
@@ -179,15 +125,36 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         primaryAddress?.country || country,
         'Complete',
         '',
-        // First 3 orders with proper field extraction
-        ...(profile.latestOrders?.slice(0, 3).flatMap((order: any) => [
-          order.orderId || '',
-          formatDate(order.orderDate || order.createDate),
-          formatCurrency(extractOrderAmount(order), currency),
-          extractOrderStatus(order),
-          extractPaymentMethod(order),
-          order.invoiceUrl || ''
-        ]) || Array(18).fill(''))
+        // First 3 orders with proper amount and status extraction
+        ...(profile.latestOrders?.slice(0, 3).flatMap((order: any) => {
+          // Extract amount from transactionAmount string or number
+          let orderAmount = 0;
+          if (order.transactionAmount) {
+            if (typeof order.transactionAmount === 'string') {
+              const matches = order.transactionAmount.match(/[\d.]+/);
+              if (matches) {
+                orderAmount = parseFloat(matches[0]);
+              }
+            } else if (typeof order.transactionAmount === 'number') {
+              orderAmount = order.transactionAmount;
+            }
+          }
+          
+          // Extract status from various status fields
+          const orderStatus = order.shipStatus || 
+                             order.orderStatus || 
+                             order.status || 
+                             order.deliveryStatus || 
+                             'Unknown';
+          
+          return [
+            order.orderId || '',
+            formatDate(order.orderDate || order.createDate),
+            formatCurrency(orderAmount, currency),
+            orderStatus,
+            order.invoiceUrl || ''
+          ];
+        }) || Array(15).fill(''))
       ];
 
       csvContent += row.join(',') + '\n';
@@ -219,15 +186,36 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         primaryAddress?.country || country,
         'Incomplete',
         `"${incompleteReasons.join('; ')}"`,
-        // First 3 orders with proper field extraction for incomplete profiles
-        ...(profile.latestOrders?.slice(0, 3).flatMap((order: any) => [
-          order.orderId || '',
-          formatDate(order.orderDate || order.createDate),
-          formatCurrency(extractOrderAmount(order), currency),
-          extractOrderStatus(order),
-          extractPaymentMethod(order),
-          order.invoiceUrl || ''
-        ]) || Array(18).fill(''))
+        // First 3 orders with proper amount and status extraction for incomplete profiles
+        ...(profile.latestOrders?.slice(0, 3).flatMap((order: any) => {
+          // Extract amount from transactionAmount string or number
+          let orderAmount = 0;
+          if (order.transactionAmount) {
+            if (typeof order.transactionAmount === 'string') {
+              const matches = order.transactionAmount.match(/[\d.]+/);
+              if (matches) {
+                orderAmount = parseFloat(matches[0]);
+              }
+            } else if (typeof order.transactionAmount === 'number') {
+              orderAmount = order.transactionAmount;
+            }
+          }
+          
+          // Extract status from various status fields
+          const orderStatus = order.shipStatus || 
+                             order.orderStatus || 
+                             order.status || 
+                             order.deliveryStatus || 
+                             'Unknown';
+          
+          return [
+            order.orderId || '',
+            formatDate(order.orderDate || order.createDate),
+            formatCurrency(orderAmount, currency),
+            orderStatus,
+            order.invoiceUrl || ''
+          ];
+        }) || Array(15).fill(''))
       ];
 
       csvContent += row.join(',') + '\n';
@@ -332,28 +320,19 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
             content += `  ${idx + 1}. ${addr.address || 'No address'}\n`;
             content += `     City: ${addr.city || 'Unknown'}, Country: ${addr.country || 'Unknown'}\n`;
           });
-        } else {
-          content += `\nADDRESSES: None saved\n`;
         }
         
         if (profile.latestOrders && profile.latestOrders.length > 0) {
           content += `\nRECENT ORDERS (${Math.min(profile.latestOrders.length, 5)}):\n`;
           profile.latestOrders.slice(0, 5).forEach((order: any, idx) => {
-            const orderAmount = extractOrderAmount(order);
-            const orderStatus = extractOrderStatus(order);
-            const paymentMethod = extractPaymentMethod(order);
-            
             content += `  ${idx + 1}. Order ${order.orderId || 'Unknown'}\n`;
-            content += `     Date: ${formatDate(order.orderDate || order.createDate)}\n`;
-            content += `     Amount: ${formatCurrency(orderAmount, currency)}\n`;
-            content += `     Status: ${orderStatus}\n`;
-            content += `     Payment: ${paymentMethod}\n`;
+            content += `     Date: ${formatDate(order.orderDate)}\n`;
+            content += `     Amount: ${formatCurrency(parseFloat(order.totalAmount || '0'), currency)}\n`;
+            content += `     Status: ${order.status || 'Unknown'}\n`;
             if (order.invoiceUrl) {
               content += `     Invoice: ${order.invoiceUrl}\n`;
             }
           });
-        } else {
-          content += `\nRECENT ORDERS: None available\n`;
         }
         
         content += `\n${'-'.repeat(40)}\n\n`;
@@ -402,21 +381,14 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         if (profile.latestOrders && profile.latestOrders.length > 0) {
           content += `\nRECENT ORDERS (${Math.min(profile.latestOrders.length, 5)}):\n`;
           profile.latestOrders.slice(0, 5).forEach((order: any, idx) => {
-            const orderAmount = extractOrderAmount(order);
-            const orderStatus = extractOrderStatus(order);
-            const paymentMethod = extractPaymentMethod(order);
-            
             content += `  ${idx + 1}. Order ${order.orderId || 'Unknown'}\n`;
-            content += `     Date: ${formatDate(order.orderDate || order.createDate)}\n`;
-            content += `     Amount: ${formatCurrency(orderAmount, currency)}\n`;
-            content += `     Status: ${orderStatus}\n`;
-            content += `     Payment: ${paymentMethod}\n`;
+            content += `     Date: ${formatDate(order.orderDate)}\n`;
+            content += `     Amount: ${formatCurrency(parseFloat(order.totalAmount || '0'), currency)}\n`;
+            content += `     Status: ${order.status || 'Unknown'}\n`;
             if (order.invoiceUrl) {
               content += `     Invoice: ${order.invoiceUrl}\n`;
             }
           });
-        } else {
-          content += `\nRECENT ORDERS: None available\n`;
         }
         
         content += `\n${'-'.repeat(40)}\n\n`;
@@ -451,27 +423,35 @@ export const downloadFile = (content: string, filename: string, mimeType: string
 /**
  * Parses uploaded file content based on format
  * 
- * @param content - File content as string
- * @param format - Format to parse ('csv' | 'txt')
- * @returns Array of customer IDs or values extracted from the file
+ * @param file - File to parse
+ * @param format - Expected format ('csv' or 'txt')
+ * @returns Promise resolving to parsed customer IDs
  */
-export const parseFileContent = (content: string, format: ExportFormat): string[] => {
-  const lines = content.split('\n').filter(line => line.trim() !== '');
-  
+export const parseUploadedFile = async (file: File, format: ExportFormat): Promise<string[]> => {
+  const content = await file.text();
+  const customerIds: string[] = [];
+
   if (format === 'csv') {
-    // Skip header row and extract first column (Customer ID)
-    return lines.slice(1).map(line => {
-      const columns = line.split(',');
-      return columns[0]?.replace(/"/g, '').trim() || '';
-    }).filter(id => id !== '');
-  } else {
-    // For TXT format, extract customer IDs from "Customer ID: " lines
-    return lines
-      .filter(line => line.includes('Customer ID:'))
-      .map(line => {
+    const lines = content.split('\n').filter(line => line.trim());
+    // Skip header row
+    for (let i = 1; i < lines.length; i++) {
+      const columns = lines[i].split(',');
+      if (columns[0] && columns[0].trim()) {
+        customerIds.push(columns[0].trim());
+      }
+    }
+  } else if (format === 'txt') {
+    const lines = content.split('\n');
+    for (const line of lines) {
+      if (line.includes('Customer ID:')) {
         const match = line.match(/Customer ID:\s*(.+)/);
-        return match ? match[1].trim() : '';
-      })
-      .filter(id => id !== '');
+        if (match && match[1]) {
+          customerIds.push(match[1].trim());
+        }
+      }
+    }
   }
+
+  // Remove duplicates
+  return Array.from(new Set(customerIds));
 };

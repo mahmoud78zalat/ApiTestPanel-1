@@ -7,7 +7,7 @@
 import { useState, useCallback } from "react";
 import type { CustomerProfile } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { exportToCSV, exportToTXT, downloadFile, parseUploadedFile } from "@/utils/export-utils";
+import { exportToCSV, exportToTXT, downloadFile, parseFileContent } from "@/utils/export-utils";
 import type { ExportFormat } from "@/utils/export-utils";
 
 export const useProfileCollection = () => {
@@ -156,7 +156,8 @@ export const useProfileCollection = () => {
    */
   const importFromFile = useCallback(async (file: File, format: ExportFormat): Promise<string[]> => {
     try {
-      const customerIds = await parseUploadedFile(file, format);
+      const content = await file.text();
+      const customerIds = parseFileContent(content, format);
       
       toast({
         title: "Import Successful",
