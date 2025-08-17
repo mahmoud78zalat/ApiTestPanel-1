@@ -318,16 +318,27 @@ export class BrandsForLessService extends ApiService {
           return dateB - dateA;
         });
         
-        // Calculate total purchases amount from ALL orders
+        // Calculate total purchases amount from ALL orders with proper amount extraction
         const totalAmount = orders.reduce((total: number, order: any) => {
-          // Extract amount from transactionAmount string (e.g., "AED 10.00" -> 10.00)
           let orderAmount = 0;
-          if (order.transactionAmount && typeof order.transactionAmount === 'string') {
+          
+          // Priority 1: Check numeric transactionAmount first
+          if (order.transactionAmount && typeof order.transactionAmount === 'number') {
+            orderAmount = order.transactionAmount;
+          }
+          // Priority 2: Extract amount from transactionAmount string (e.g., "AED 10.00" -> 10.00)
+          else if (order.transactionAmount && typeof order.transactionAmount === 'string') {
             const matches = order.transactionAmount.match(/[\d.]+/);
             if (matches) {
               orderAmount = parseFloat(matches[0]);
             }
-          } else {
+          }
+          // Priority 3: Check numeric subtotal
+          else if (order.subtotal && typeof order.subtotal === 'number') {
+            orderAmount = order.subtotal;
+          }
+          // Priority 4: Fallback to other amount fields
+          else {
             orderAmount = parseFloat(
               order.amount ||
               order.subtotal ||
@@ -341,6 +352,17 @@ export class BrandsForLessService extends ApiService {
               0
             );
           }
+          
+          // Add debug logging for amount calculation
+          if (orderAmount > 0) {
+            console.log(`💰 Order ${order.orderId || 'unknown'} amount: ${orderAmount} (from ${
+              order.transactionAmount && typeof order.transactionAmount === 'number' ? 'numeric transactionAmount' :
+              order.transactionAmount && typeof order.transactionAmount === 'string' ? 'string transactionAmount' :
+              order.subtotal && typeof order.subtotal === 'number' ? 'numeric subtotal' :
+              'fallback fields'
+            })`);
+          }
+          
           return total + orderAmount;
         }, 0);
         
