@@ -84,20 +84,17 @@ export function ApiRequestForm({
       // Update method when endpoint changes
       onMethodChange(endpoint.method);
       
-      // When an endpoint is selected, switch to predefined URL mode
-      if (showCustomUrl && selectedEndpoint) {
-        onShowCustomUrlToggle(false);
+      // Update URL when endpoint changes (only if not using custom URL)
+      if (!showCustomUrl) {
+        const constructedUrl = constructUrl(endpoint.url, parameters);
+        onUrlChange(constructedUrl);
+        
+        // Add debugging console log
+        console.log("🔄 URL Updated:", constructedUrl);
+        console.log("├─ Endpoint ID:", selectedEndpoint);
+        console.log("├─ Template:", endpoint.url);
+        console.log("└─ Parameters:", parameters);
       }
-      
-      // Update URL when endpoint changes
-      const constructedUrl = constructUrl(endpoint.url, parameters);
-      onUrlChange(constructedUrl);
-      
-      // Add debugging console log
-      console.log("🔄 URL Updated:", constructedUrl);
-      console.log("├─ Endpoint ID:", selectedEndpoint);
-      console.log("├─ Template:", endpoint.url);
-      console.log("└─ Parameters:", parameters);
     }
   }, [selectedEndpoint, parameters, showCustomUrl, onMethodChange, onUrlChange]);
 
@@ -167,7 +164,10 @@ export function ApiRequestForm({
           <Switch
             id="custom-url"
             checked={showCustomUrl}
-            onCheckedChange={onShowCustomUrlToggle}
+            onCheckedChange={(checked) => {
+              console.log("🔧 Custom URL toggle clicked:", checked);
+              onShowCustomUrlToggle(checked);
+            }}
           />
           <Label htmlFor="custom-url" className="text-sm">
             Use custom URL
