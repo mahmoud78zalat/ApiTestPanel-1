@@ -18,6 +18,31 @@ export const formatDate = (
   if (!date) return "Not available";
   
   try {
+    // Handle DD-MM-YYYY format specifically
+    if (typeof date === 'string' && date.match(/^\d{2}-\d{2}-\d{4}$/)) {
+      const [day, month, year] = date.split('-');
+      const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      
+      if (isNaN(dateObj.getTime())) {
+        return "Not available";
+      }
+      
+      switch (format) {
+        case 'short':
+          return dateObj.toLocaleDateString('en-US');
+        case 'long':
+          return dateObj.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+        case 'iso':
+          return dateObj.toISOString();
+        default:
+          return dateObj.toLocaleDateString('en-US');
+      }
+    }
+    
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     
     if (isNaN(dateObj.getTime())) {

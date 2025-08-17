@@ -268,7 +268,8 @@ function ProfileDetailsView({ profile }: { profile: CustomerProfile }) {
             <div><strong>Phone:</strong> {profile.phoneNumber || 'Not available'}</div>
             <div><strong>Birthday:</strong> {formatDate(profile.birthDate)}</div>
             <div><strong>Gender:</strong> {profile.gender || 'Not available'}</div>
-            <div><strong>Registration:</strong> {formatDate(profile.registerDate)}</div>
+            <div><strong>Registration:</strong> {formatDate(profile.registerDate) || 'Not available'}</div>
+            <div className="text-xs text-gray-500">Raw value: {profile.registerDate || 'null/undefined'}</div>
           </div>
         </div>
 
