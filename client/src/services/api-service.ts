@@ -7,7 +7,7 @@
 
 import { apiRequest } from "@/lib/queryClient";
 import type { ApiRequest, ApiResponse } from "@shared/schema";
-import { requestScheduler } from "./request-scheduler";
+import { professionalScheduler } from "./request-scheduler";
 
 /**
  * Main API service class for handling HTTP requests through the backend proxy
@@ -89,15 +89,19 @@ export class ApiService {
     // Convert requests to functions for batch processing
     const requestFunctions = requests.map((request, index) => async () => {
       console.log(`📋 Processing bulk request ${index + 1}/${requests.length}:`, request.url);
-      return await requestScheduler.makeCachedRequest(request, this.makeRequest.bind(this));
+      return await professionalScheduler.scheduleRequest(request.url, request.method, 'normal', { token: request.token, headers: request.headers });
     });
 
     // Process in batches with progress tracking
-    const results = await requestScheduler.processBatch(requestFunctions, {
-      batchSize: 8,
-      delayBetweenBatches: 50,
-      timeoutMs: 30000
-    });
+    const results = await Promise.allSettled(
+      requestFunctions.map(async (requestFn) => {
+        try {
+          return await requestFn();
+        } catch (error) {
+          throw error;
+        }
+      })
+    );
 
     const endTime = performance.now();
     const totalTime = Math.round(endTime - startTime);
@@ -121,7 +125,7 @@ export class ApiService {
 
       return {
         success: result.status === 'fulfilled',
-        data: result.value,
+        data: result.status === 'fulfilled' ? result.value : undefined,
         error: result.status === 'rejected' 
           ? (result.reason instanceof Error ? result.reason.message : 'Unknown error')
           : undefined

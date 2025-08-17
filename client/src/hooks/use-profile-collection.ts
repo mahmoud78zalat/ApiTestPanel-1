@@ -14,17 +14,24 @@ export const useProfileCollection = () => {
   const { toast } = useToast();
   const [collectedProfiles, setCollectedProfiles] = useState<CustomerProfile[]>([]);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [duplicateCount, setDuplicateCount] = useState(0);
 
   /**
-   * Adds a single profile to the collection
+   * Adds a single profile to the collection with duplicate tracking
    */
-  const addProfile = useCallback((profile: CustomerProfile) => {
+  const addProfile = useCallback((profile: CustomerProfile, onDuplicate?: (customerId: string) => void) => {
+    let isDuplicate = false;
+    
     setCollectedProfiles(prev => {
       // Check if profile already exists (by customerId)
       const existingIndex = prev.findIndex(p => p.customerId === profile.customerId);
       
       if (existingIndex >= 0) {
         // Update existing profile
+        isDuplicate = true;
+        setDuplicateCount(count => count + 1);
+        onDuplicate?.(profile.customerId);
+        
         const updated = [...prev];
         updated[existingIndex] = profile;
         return updated;
@@ -35,15 +42,20 @@ export const useProfileCollection = () => {
     });
 
     toast({
-      title: "Profile Added",
-      description: `Customer profile ${profile.customerId} has been collected.`,
+      title: isDuplicate ? "Profile Updated" : "Profile Added",
+      description: isDuplicate 
+        ? `Customer profile ${profile.customerId} already exists - updated with latest data.`
+        : `Customer profile ${profile.customerId} has been collected.`,
     });
   }, [toast]);
 
   /**
-   * Adds multiple profiles to the collection
+   * Adds multiple profiles to the collection with duplicate tracking
    */
-  const addProfiles = useCallback((profiles: CustomerProfile[]) => {
+  const addProfiles = useCallback((profiles: CustomerProfile[], onDuplicate?: (customerId: string) => void) => {
+    let duplicatesFound = 0;
+    let newProfilesAdded = 0;
+    
     setCollectedProfiles(prev => {
       const updated = [...prev];
       
@@ -51,18 +63,22 @@ export const useProfileCollection = () => {
         const existingIndex = updated.findIndex(p => p.customerId === profile.customerId);
         
         if (existingIndex >= 0) {
+          duplicatesFound++;
+          onDuplicate?.(profile.customerId);
           updated[existingIndex] = profile;
         } else {
+          newProfilesAdded++;
           updated.push(profile);
         }
       });
       
+      setDuplicateCount(count => count + duplicatesFound);
       return updated;
     });
 
     toast({
-      title: "Profiles Added",
-      description: `${profiles.length} customer profiles have been collected.`,
+      title: "Bulk Profiles Processed",
+      description: `Added ${newProfilesAdded} new profiles, updated ${duplicatesFound} duplicates.`,
     });
   }, [toast]);
 
@@ -79,10 +95,11 @@ export const useProfileCollection = () => {
   }, [toast]);
 
   /**
-   * Clears all collected profiles
+   * Clears all collected profiles and resets duplicate counter
    */
   const clearProfiles = useCallback(() => {
     setCollectedProfiles([]);
+    setDuplicateCount(0);
     
     toast({
       title: "Profiles Cleared",
@@ -190,6 +207,7 @@ export const useProfileCollection = () => {
     clearProfiles,
     exportProfiles,
     importFromFile,
-    getCollectionStats
+    getCollectionStats,
+    duplicateCount
   };
 };

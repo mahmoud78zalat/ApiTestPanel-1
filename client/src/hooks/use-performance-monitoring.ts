@@ -5,7 +5,6 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import { requestScheduler } from "@/services/request-scheduler";
 
 interface PerformanceMetrics {
   totalRequests: number;
@@ -17,6 +16,9 @@ interface PerformanceMetrics {
   cacheHitRate: number;
   startTime: number;
   endTime?: number;
+  duplicateProfiles: number;
+  profilesPerSecond: number;
+  activeConnections: number;
 }
 
 export const usePerformanceMonitoring = () => {
@@ -29,6 +31,9 @@ export const usePerformanceMonitoring = () => {
     totalDataTransferred: 0,
     cacheHitRate: 0,
     startTime: Date.now(),
+    duplicateProfiles: 0,
+    profilesPerSecond: 0,
+    activeConnections: 0
   });
 
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -49,6 +54,9 @@ export const usePerformanceMonitoring = () => {
       totalDataTransferred: 0,
       cacheHitRate: 0,
       startTime: Date.now(),
+      duplicateProfiles: 0,
+      profilesPerSecond: 0,
+      activeConnections: 0
     });
     responseTimes.current = [];
     cacheStats.current = { hits: 0, misses: 0 };
@@ -122,6 +130,9 @@ export const usePerformanceMonitoring = () => {
       totalDataTransferred: 0,
       cacheHitRate: 0,
       startTime: Date.now(),
+      duplicateProfiles: 0,
+      profilesPerSecond: 0,
+      activeConnections: 0
     });
     responseTimes.current = [];
     cacheStats.current = { hits: 0, misses: 0 };
@@ -129,13 +140,14 @@ export const usePerformanceMonitoring = () => {
   }, []);
 
   /**
-   * Get cache statistics from request scheduler
+   * Update cache statistics manually
    */
   const updateCacheStats = useCallback(() => {
-    const stats = requestScheduler.getCacheStats();
     setMetrics(prev => ({
       ...prev,
-      cacheHitRate: stats.size > 0 ? (cacheStats.current.hits / (cacheStats.current.hits + cacheStats.current.misses)) * 100 : 0
+      cacheHitRate: (cacheStats.current.hits + cacheStats.current.misses) > 0 
+        ? (cacheStats.current.hits / (cacheStats.current.hits + cacheStats.current.misses)) * 100 
+        : 0
     }));
   }, []);
 

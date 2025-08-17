@@ -57,30 +57,29 @@ export default function ApiTesterRefactored() {
     isProfileLoading
   } = useApiRequest();
 
-  // Debug logging
+  // Enhanced debug logging with detailed process tracking
   const {
     debugLogs,
     showDebugPanel,
     addDebugLog,
     clearDebugLogs,
     toggleDebugPanel,
-    setShowDebugPanel
+    setShowDebugPanel,
+    logProcessStep,
+    logApiRequest,
+    logApiResponse,
+    logDuplicateDetection
   } = useDebugLogging();
 
-  // Bulk processing
+  // Bulk processing with new professional system
   const {
-    bulkMode,
-    bulkInput,
-    bulkResults,
-    setBulkMode,
-    setBulkInput,
-    bulkProcessingMutation,
-    parseBulkInput,
-    clearBulkResults,
-    getBulkSummary
+    processingState,
+    processBulkCustomerIds,
+    cancelProcessing,
+    resetProcessingState
   } = useBulkProcessing();
 
-  // Profile collection
+  // Profile collection with duplicate tracking
   const {
     collectedProfiles,
     showUploadDialog,
@@ -91,7 +90,8 @@ export default function ApiTesterRefactored() {
     clearProfiles,
     exportProfiles,
     importFromFile,
-    getCollectionStats
+    getCollectionStats,
+    duplicateCount
   } = useProfileCollection();
 
   // Performance monitoring
@@ -188,94 +188,95 @@ export default function ApiTesterRefactored() {
           console.error('API request failed:', error);
         }
       }
-    } else {
-      // Bulk processing mode
-      const values = parseBulkInput(bulkInput);
-      if (values.length === 0) {
-        toast({
-          title: "No Values to Process",
-          description: "Please enter values for bulk processing",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const currentEndpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
-      if (!currentEndpoint) {
-        toast({
-          title: "No Endpoint Selected",
-          description: "Please select an endpoint for bulk processing",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Start performance monitoring for bulk operations
-      startMonitoring(values.length);
-      addDebugLog('request', 'Optimized Bulk Processing Started', { 
-        endpoint: currentEndpoint.name, 
-        valueCount: values.length,
-        batchSize: 8,
-        parallelProcessing: true
-      });
-
-      // Handle bulk full profile fetching with optimized batching
-      if (currentEndpoint.id === 'fetch-full-profile') {
-        try {
-          const startTime = Date.now();
-          
-          // Use optimized batch processing from BrandsForLessService
-          const results = await Promise.all(
-            values.map(async customerId => {
-              const profileStartTime = Date.now();
-              try {
-                const profile = await trackPerformance(() => fetchFullProfile(customerId, token), 'fetchFullProfile');
-                return profile;
-              } catch (error) {
-                return null;
-              }
-            })
-          );
-          
-          const validProfiles = results.filter(Boolean);
-          addProfiles(validProfiles);
-          stopMonitoring();
-          
-          toast({
-            title: "Bulk Processing Complete",
-            description: `Successfully processed ${validProfiles.length} out of ${values.length} profiles with optimized batching`,
-          });
-        } catch (error) {
-          stopMonitoring();
-          console.error('Bulk profile fetch failed:', error);
-        }
-      } else {
-        // Regular bulk processing with performance monitoring
-        bulkProcessingMutation.mutate({
-          values,
-          endpoint: currentEndpoint,
-          token
-        });
-      }
     }
   };
 
-  /**
-   * Handles file upload for importing customer IDs
-   */
-  const handleFileUpload = async (customerIds: string[]) => {
-    if (customerIds.length === 0) return;
+  // Enhanced bulk processing function using the new professional system
+  const handleBulkProcessing = async (customerIds: string[]) => {
+    if (!token) {
+      toast({
+        title: "Authentication Required",
+        description: "Please provide an authentication token",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setBulkInput(customerIds.join('\n'));
-    setBulkMode(true);
+    setShowDebugPanel(true);
+    startMonitoring();
     
-    // Auto-select fetch-full-profile endpoint
-    setSelectedEndpoint('fetch-full-profile');
-    
-    toast({
-      title: "IDs Imported",
-      description: `${customerIds.length} customer IDs imported and bulk mode enabled`,
-    });
+    logProcessStep(1, "Bulk Processing Initialization", {
+      totalCustomers: customerIds.length,
+      batchingEnabled: true,
+      concurrentRequests: 8
+    }, 'started');
+
+    try {
+      const results = await processBulkCustomerIds(
+        customerIds,
+        token,
+        collectedProfiles,
+        {
+          batchSize: 8,
+          maxConcurrent: 8,
+          retryAttempts: 3,
+          delayBetweenBatches: 200,
+          onProgress: (state) => {
+            logProcessStep(
+              state.currentBatch + 1, 
+              `Processing Batch ${state.currentBatch + 1}/${state.totalBatches}`, 
+              {
+                processed: state.processedItems,
+                successful: state.successfulItems,
+                failed: state.failedItems,
+                duplicates: state.duplicateItems,
+                estimatedTimeRemaining: state.estimatedTimeRemaining
+              },
+              'progress'
+            );
+          },
+          onProfileProcessed: (profile, isDuplicate) => {
+            if (isDuplicate) {
+              logDuplicateDetection(profile.customerId, 'detected');
+            }
+            addProfile(profile, (customerId) => {
+              logDuplicateDetection(customerId, 'updated');
+            });
+          },
+          onDebugLog: (level, message, data) => {
+            addDebugLog(level as any, message, data);
+          }
+        }
+      );
+
+      logProcessStep(customerIds.length, "Bulk Processing Completed", {
+        totalProcessed: customerIds.length,
+        successful: results.length,
+        profilesCollected: collectedProfiles.length + results.length,
+        duplicatesFound: duplicateCount
+      }, 'completed');
+
+      stopMonitoring();
+
+      toast({
+        title: "Bulk Processing Complete",
+        description: `Successfully processed ${results.length} customer profiles`,
+      });
+
+    } catch (error) {
+      logProcessStep(0, "Bulk Processing Failed", {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        partialResults: processingState.processedItems
+      }, 'failed');
+
+      stopMonitoring();
+      
+      toast({
+        title: "Bulk Processing Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -298,17 +299,17 @@ export default function ApiTesterRefactored() {
         selectedEndpoint={selectedEndpoint}
         parameters={parameters}
         showCustomUrl={showCustomUrl}
-        bulkMode={bulkMode}
-        bulkInput={bulkInput}
-        isLoading={isLoading || isProfileLoading || bulkProcessingMutation.isPending}
+        bulkMode={false}
+        bulkInput=""
+        isLoading={isLoading || isProfileLoading}
         onUrlChange={setUrl}
         onMethodChange={setMethod}
         onTokenChange={setToken}
         onEndpointChange={setSelectedEndpoint}
         onParametersChange={setParameters}
         onShowCustomUrlToggle={setShowCustomUrl}
-        onBulkModeToggle={setBulkMode}
-        onBulkInputChange={setBulkInput}
+        onBulkModeToggle={() => {}}
+        onBulkInputChange={() => {}}
         onSubmit={handleSubmit}
         onReset={resetForm}
       />
@@ -320,14 +321,7 @@ export default function ApiTesterRefactored() {
         isLoading={isLoading}
       />
 
-      {/* Bulk Processing Results */}
-      {bulkResults.length > 0 && (
-        <BulkResultsPanel
-          results={bulkResults}
-          isProcessing={bulkProcessingMutation.isPending}
-          onClear={clearBulkResults}
-        />
-      )}
+      {/* Professional bulk processing moved to Profile Management */}
 
       {/* Customer Profile Collection */}
       <ProfileManagement
@@ -351,14 +345,15 @@ export default function ApiTesterRefactored() {
         metrics={metrics}
         isActive={isMonitoring}
         onReset={resetMetrics}
-        showDetails={bulkMode}
+        showDetails={false}
+        duplicateCount={duplicateCount}
       />
 
       {/* Upload Dialog */}
       <UploadDialog
         open={showUploadDialog}
         onOpenChange={setShowUploadDialog}
-        onFileProcessed={handleFileUpload}
+        onFileProcessed={handleBulkProcessing}
       />
     </div>
   );

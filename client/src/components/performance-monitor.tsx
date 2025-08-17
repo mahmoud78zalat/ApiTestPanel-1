@@ -29,6 +29,9 @@ interface PerformanceMetrics {
   cacheHitRate: number;
   startTime: number;
   endTime?: number;
+  duplicateProfiles: number;
+  profilesPerSecond: number;
+  activeConnections: number;
 }
 
 interface PerformanceMonitorProps {
@@ -40,13 +43,16 @@ interface PerformanceMonitorProps {
   onReset: () => void;
   /** Whether to show detailed metrics */
   showDetails?: boolean;
+  /** Number of duplicate profiles detected */
+  duplicateCount?: number;
 }
 
 export function PerformanceMonitor({
   metrics,
   isActive,
   onReset,
-  showDetails = false
+  showDetails = false,
+  duplicateCount = 0
 }: PerformanceMonitorProps) {
   const [isExpanded, setIsExpanded] = useState(showDetails);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -140,12 +146,19 @@ export function PerformanceMonitor({
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="text-center">
               <div className="text-lg font-semibold text-green-600">
                 {successRate.toFixed(1)}%
               </div>
               <div className="text-xs text-gray-500">Success Rate</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-lg font-semibold text-orange-600">
+                {duplicateCount}
+              </div>
+              <div className="text-xs text-gray-500">Duplicates</div>
             </div>
             
             <div className="text-center">
