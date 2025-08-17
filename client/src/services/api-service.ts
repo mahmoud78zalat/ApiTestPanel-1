@@ -436,32 +436,49 @@ export class BrandsForLessService extends ApiService {
       }
     }
 
-    // Step 4: Try to fetch PII data for additional information
+    // Step 4: Try to fetch additional customer data for PII information
     try {
-      console.log("🔐 Step 4: Fetching PII data", profileId);
-      const piiRequest: ApiRequest = {
-        url: `https://api.brandsforlessuae.com/customer/api/v1/pii?customerId=${actualCustomerId}`,
+      console.log("🔐 Step 4: Fetching additional customer data", profileId);
+      const customerDataRequest: ApiRequest = {
+        url: `https://api.brandsforlessuae.com/customer/api/v1/user?mobile=&email=&customerId=${actualCustomerId}`,
         method: "GET",
         token: token.trim(),
       };
       
-      const piiData = await this.makeRequest(piiRequest);
+      const customerDataResponse = await this.makeRequest(customerDataRequest);
       
-      if (piiData.status === 200 && piiData.data && piiData.data.data && piiData.data.data.data && piiData.data.data.data.length > 0) {
-        const userPiiData = piiData.data.data.data[0];
+      if (customerDataResponse.status === 200 && customerDataResponse.data && customerDataResponse.data.data && customerDataResponse.data.data.length > 0) {
+        const customerInfo = customerDataResponse.data.data[0];
         
-        if (!profile.birthDate && userPiiData.birthday) {
-          profile.birthDate = userPiiData.birthday;
+        // Extract PII data from the response
+        if (!profile.birthDate && customerInfo.birthday) {
+          profile.birthDate = customerInfo.birthday;
         }
-        if (!profile.gender && userPiiData.gender) {
-          profile.gender = userPiiData.gender;
+        if (!profile.gender && customerInfo.gender) {
+          profile.gender = customerInfo.gender;
         }
-        if (!profile.registerDate && userPiiData.regDate) {
-          profile.registerDate = userPiiData.regDate;
+        if (!profile.registerDate && (customerInfo.regDate || customerInfo.registrationDate || customerInfo.createdAt)) {
+          profile.registerDate = customerInfo.regDate || customerInfo.registrationDate || customerInfo.createdAt;
+        }
+        
+        // Also extract any missing contact information
+        if (!profile.email && customerInfo.email) {
+          profile.email = customerInfo.email;
+        }
+        if (!profile.phoneNumber && customerInfo.mobile) {
+          profile.phoneNumber = customerInfo.mobile;
+        }
+        
+        // Extract name if still missing
+        if (!profile.fullName || profile.fullName === "Unknown Customer") {
+          const fullName = customerInfo.fullName || customerInfo.name || `${customerInfo.fname || customerInfo.firstName || ''} ${customerInfo.lname || customerInfo.lastName || ''}`.trim();
+          if (fullName && fullName !== "") {
+            profile.fullName = fullName;
+          }
         }
       }
     } catch (error) {
-      console.warn("❌ Step 4 failed - PII data:", error);
+      console.warn("❌ Step 4 failed - customer data:", error);
     }
 
     // Final validation
