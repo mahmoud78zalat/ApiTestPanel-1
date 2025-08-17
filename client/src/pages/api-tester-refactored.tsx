@@ -110,7 +110,7 @@ export default function ApiTesterRefactored() {
   const [bulkInput, setBulkInput] = useState('');
 
   // Wrap API functions to track performance
-  const trackPerformance = async (operation: () => Promise<any>, operationName: string) => {
+  const trackPerformance = async (operation: () => Promise<any>) => {
     const startTime = Date.now();
     try {
       const result = await operation();
@@ -133,14 +133,14 @@ export default function ApiTesterRefactored() {
   // Log API responses for debugging
   useEffect(() => {
     if (response) {
-      addDebugLog('response', 'API Response Received', response, url, method);
+      addDebugLog('response', 'API Response Received', response);
     }
   }, [response, url, method, addDebugLog]);
 
   // Log API errors for debugging
   useEffect(() => {
     if (error) {
-      addDebugLog('error', 'API Request Failed', { error }, url, method);
+      addDebugLog('error', 'API Request Failed', { error });
     }
   }, [error, url, method, addDebugLog]);
 
@@ -151,7 +151,7 @@ export default function ApiTesterRefactored() {
     if (!bulkMode) {
       // Single request mode
       startMonitoring(1);
-      addDebugLog('request', 'Single API Request', { url, method, token }, url, method);
+      addDebugLog('request', 'Single API Request', { url, method, token });
       
       const currentEndpoint = API_ENDPOINTS.find(ep => ep.id === selectedEndpoint);
       
@@ -169,7 +169,7 @@ export default function ApiTesterRefactored() {
         }
 
         try {
-          const profile = await trackPerformance(() => fetchFullProfile(customerId, token), 'fetchFullProfile');
+          const profile = await trackPerformance(async () => await fetchFullProfile(customerId, token));
           if (profile) {
             addProfile(profile);
             toast({
@@ -185,7 +185,7 @@ export default function ApiTesterRefactored() {
       } else {
         // Regular single request with performance tracking
         try {
-          await trackPerformance(() => makeRequest(), 'makeRequest');
+          await trackPerformance(async () => await makeRequest());
           stopMonitoring();
         } catch (error) {
           stopMonitoring();
@@ -251,7 +251,7 @@ export default function ApiTesterRefactored() {
     logProcessStep(1, "Bulk Processing Initialization", {
       totalCustomers: customerIds.length,
       batchingEnabled: true,
-      concurrentRequests: 8
+      concurrentRequests: 12
     }, 'started');
 
     try {
@@ -260,11 +260,18 @@ export default function ApiTesterRefactored() {
         token,
         collectedProfiles,
         {
-          batchSize: 8,
-          maxConcurrent: 8,
+          batchSize: 12,
+          maxConcurrent: 12,
           retryAttempts: 3,
           delayBetweenBatches: 200,
           onProgress: (state) => {
+            // Record each processed item for performance monitoring
+            if (state.processedItems > 0) {
+              const responseTime = state.averageProcessingTime || 100; // Use average or default
+              const success = state.successfulItems / state.processedItems > 0.5; // Consider successful if > 50% success rate
+              recordRequest(success, responseTime, 1000, false); // Approximate data size
+            }
+            
             logProcessStep(
               state.currentBatch + 1, 
               `Processing Batch ${state.currentBatch + 1}/${state.totalBatches}`, 
@@ -273,7 +280,8 @@ export default function ApiTesterRefactored() {
                 successful: state.successfulItems,
                 failed: state.failedItems,
                 duplicates: state.duplicateItems,
-                estimatedTimeRemaining: state.estimatedTimeRemaining
+                estimatedTimeRemaining: state.estimatedTimeRemaining,
+                batchSize: 12
               },
               'progress'
             );

@@ -68,8 +68,8 @@ export const useBulkProcessing = () => {
     options: Partial<BulkProcessingOptions> = {}
   ): Promise<CustomerProfile[]> => {
     const config: BulkProcessingOptions = {
-      batchSize: 8, // Optimal batch size for concurrent processing
-      maxConcurrent: 8,
+      batchSize: 12, // Increased batch size by 50% (8 × 1.5 = 12)
+      maxConcurrent: 12,
       retryAttempts: 3,
       delayBetweenBatches: 200, // Small delay to prevent overwhelming the API
       onProgress: () => {},
@@ -273,7 +273,7 @@ export const useBulkProcessing = () => {
             maxAttempts: config.retryAttempts
           });
 
-          const profile = await BrandsForLessService.fetchCustomerProfile(customerId, token, config.onDebugLog);
+          const profile = await BrandsForLessService.fetchCustomerProfile(customerId, token);
           
           if (profile) {
             profiles.push(profile);

@@ -89,7 +89,7 @@ export class ApiService {
     // Convert requests to functions for batch processing
     const requestFunctions = requests.map((request, index) => async () => {
       console.log(`📋 Processing bulk request ${index + 1}/${requests.length}:`, request.url);
-      return await professionalScheduler.scheduleRequest(request.url, request.method, 'normal', { token: request.token, headers: request.headers });
+      return await professionalScheduler.scheduleRequest(request.url, request.method, { priority: 'normal', token: request.token, headers: request.headers });
     });
 
     // Process in batches with progress tracking
@@ -125,7 +125,7 @@ export class ApiService {
 
       return {
         success: result.status === 'fulfilled',
-        data: result.status === 'fulfilled' ? result.value : undefined,
+        data: result.status === 'fulfilled' ? result.value as ApiResponse : undefined,
         error: result.status === 'rejected' 
           ? (result.reason instanceof Error ? result.reason.message : 'Unknown error')
           : undefined
@@ -609,11 +609,22 @@ export class BrandsForLessService extends ApiService {
       return await this.fetchCustomerProfile(customerId, token);
     };
 
-    return await requestScheduler.processCustomerProfilesBatch(customerIds, profileFetcher, {
-      batchSize: 6, // Slightly smaller batches for profile fetching since each profile makes 4 API calls
-      delayBetweenBatches: 100, // Slightly longer delay for complex operations
-      timeoutMs: 45000 // Longer timeout for profile operations
-    });
+    // Process customer profiles using the same bulk processing logic
+    const results: Array<{ customerId: string; profile?: any; error?: string }> = [];
+    
+    for (const customerId of customerIds) {
+      try {
+        const profile = await this.fetchCustomerProfile(customerId, token);
+        results.push({ customerId, profile });
+      } catch (error) {
+        results.push({ 
+          customerId, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+      }
+    }
+    
+    return results;
   }
 
   /**
