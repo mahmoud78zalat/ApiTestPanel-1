@@ -45,6 +45,11 @@ export function ProfileManagement({
   onShowUpload
 }: ProfileManagementProps) {
   // Calculate collection statistics
+  // Sort profiles by total spending (highest first)
+  const sortedProfiles = [...profiles].sort((a, b) => 
+    (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0)
+  );
+
   const totalProfiles = profiles.length;
   const countryCounts = profiles.reduce((acc, profile) => {
     const country = profile.addresses?.[0]?.country || 'Unknown';
@@ -97,31 +102,7 @@ export function ProfileManagement({
               <Upload className="w-4 h-4 mr-2" />
               Import IDs
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onExportProfiles('csv')}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onExportProfiles('txt')}
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Export TXT
-              Export CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onExportProfiles('txt')}
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Export TXT
-            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -184,7 +165,7 @@ export function ProfileManagement({
       <CardContent>
         {/* Profile List */}
         <div className="space-y-3 max-h-96 overflow-y-auto">
-          {profiles.map((profile, index) => (
+          {sortedProfiles.map((profile, index) => (
             <ProfileCard
               key={profile.customerId}
               profile={profile}
@@ -308,11 +289,16 @@ function ProfileDetailsView({ profile }: { profile: CustomerProfile }) {
           <div className="space-y-2">
             {profile.addresses.map((address, index) => (
               <div key={index} className="p-3 bg-gray-50 rounded border text-sm">
-                <div>{address.address || 'No address provided'}</div>
-                <div className="text-gray-600">
-                  {address.city && <span>{address.city}, </span>}
-                  {address.country || 'Unknown country'}
+                <div className="font-medium">
+                  {address.name || `${address.firstname || address.firstName || ''} ${address.lastname || address.lastName || ''}`.trim() || 'Address'}
                 </div>
+                <div>{address.addressLine1 || address.address || 'No address line provided'}</div>
+                {(address.area || address.city) && (
+                  <div>{address.area && address.city ? `${address.area}, ${address.city}` : address.area || address.city}</div>
+                )}
+                {address.country && <div>{address.country}</div>}
+                {address.phone && <div className="text-gray-600">Phone: {address.phone}</div>}
+                {address.zipcode && <div className="text-gray-600">ZIP: {address.zipcode}</div>}
               </div>
             ))}
           </div>

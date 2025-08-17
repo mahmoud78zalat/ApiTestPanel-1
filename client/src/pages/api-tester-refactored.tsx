@@ -105,6 +105,22 @@ export default function ApiTesterRefactored() {
     updateCacheStats
   } = usePerformanceMonitoring();
 
+  // Wrap API functions to track performance
+  const trackPerformance = async (operation: () => Promise<any>, operationName: string) => {
+    const startTime = Date.now();
+    try {
+      const result = await operation();
+      const responseTime = Date.now() - startTime;
+      const dataSize = JSON.stringify(result || '').length;
+      recordRequest(true, responseTime, dataSize, false);
+      return result;
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      recordRequest(false, responseTime, 0, false);
+      throw error;
+    }
+  };
+
   // Update URL when endpoint or parameters change
   useEffect(() => {
     updateUrlFromEndpoint();
@@ -149,23 +165,28 @@ export default function ApiTesterRefactored() {
         }
 
         try {
-          const startTime = Date.now();
-          const profile = await fetchFullProfile(customerId);
-          const responseTime = Date.now() - startTime;
-          const dataSize = JSON.stringify(profile).length;
-          
-          recordRequest(true, responseTime, dataSize);
-          addProfile(profile);
+          const profile = await trackPerformance(() => fetchFullProfile(customerId, token), 'fetchFullProfile');
+          if (profile) {
+            addProfile(profile);
+            toast({
+              title: "Profile Collected",
+              description: `Successfully collected profile for customer ${customerId}`,
+            });
+          }
           stopMonitoring();
         } catch (error) {
-          recordRequest(false, 0);
           stopMonitoring();
           console.error('Profile fetch failed:', error);
         }
       } else {
-        // Regular single request
-        makeRequest();
-        // Performance monitoring for regular requests is handled in the response effect
+        // Regular single request with performance tracking
+        try {
+          await trackPerformance(() => makeRequest(), 'makeRequest');
+          stopMonitoring();
+        } catch (error) {
+          stopMonitoring();
+          console.error('API request failed:', error);
+        }
       }
     } else {
       // Bulk processing mode
@@ -208,13 +229,9 @@ export default function ApiTesterRefactored() {
             values.map(async customerId => {
               const profileStartTime = Date.now();
               try {
-                const profile = await fetchFullProfile(customerId);
-                const responseTime = Date.now() - profileStartTime;
-                const dataSize = JSON.stringify(profile).length;
-                recordRequest(true, responseTime, dataSize);
+                const profile = await trackPerformance(() => fetchFullProfile(customerId, token), 'fetchFullProfile');
                 return profile;
               } catch (error) {
-                recordRequest(false, Date.now() - profileStartTime);
                 return null;
               }
             })

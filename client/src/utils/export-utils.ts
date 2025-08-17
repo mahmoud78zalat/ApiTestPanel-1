@@ -70,7 +70,9 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
   let csvContent = headers.join(',') + '\n';
 
   for (const country of sortedCountries) {
-    const countryProfiles = profilesByCountry[country];
+    const countryProfiles = profilesByCountry[country]
+      // Sort profiles within each country by spending (highest first)
+      .sort((a, b) => (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0));
     
     for (const profile of countryProfiles) {
       const currency = getActualCurrency(profile.latestOrders);
@@ -136,7 +138,12 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
     content += `COUNTRY: ${country} (${countryProfiles.length} customers)\n`;
     content += `${'-'.repeat(60)}\n\n`;
 
-    for (const profile of countryProfiles) {
+    // Sort profiles within each country by spending (highest first)
+    const sortedCountryProfiles = countryProfiles.sort((a, b) => 
+      (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0)
+    );
+
+    for (const profile of sortedCountryProfiles) {
       const currency = getActualCurrency(profile.latestOrders);
       
       content += `Customer ID: ${profile.customerId}\n`;
