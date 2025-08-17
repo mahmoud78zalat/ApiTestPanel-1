@@ -157,27 +157,70 @@ export class BrandsForLessService extends ApiService {
   };
 
   /**
+   * Determines if an ID looks like an order ID vs customer ID
+   * Order IDs are typically alphanumeric (e.g., A062493300038, B123456789)
+   * Customer IDs are typically numeric (e.g., 1405941, 123456)
+   */
+  private static isOrderId(id: string): boolean {
+    // Check if ID contains letters (order IDs often start with letters)
+    // or is very long (order IDs tend to be longer)
+    return /^[A-Z]\d+/.test(id) || (id.length > 10 && /[A-Za-z]/.test(id));
+  }
+
+  /**
    * Fetches comprehensive customer profile by calling multiple endpoints sequentially
    * This maintains the original behavior of building rich profile data
    * 
-   * @param customerId - Customer ID to fetch profile for
+   * @param customerIdOrOrderId - Customer ID or Order ID to fetch profile for
    * @param token - Authentication token
    * @returns Promise resolving to comprehensive profile data from the final enriched response
    */
-  static async fetchCustomerProfile(customerId: string, token: string): Promise<any> {
+  static async fetchCustomerProfile(customerIdOrOrderId: string, token: string): Promise<any> {
     const profileId = Math.random().toString(36).substr(2, 9);
     const startTime = performance.now();
     
     console.log("👤 CUSTOMER PROFILE FETCH STARTED", profileId);
-    console.log("├─ Customer ID:", customerId);
+    console.log("├─ Input ID:", customerIdOrOrderId);
     console.log("├─ Token provided:", !!token);
-    console.log("└─ Multi-step process: address → orders → user → pii");
+    console.log("└─ Multi-step process: resolve ID → address → orders → user → pii");
     
-    // This function maintains ALL the original functionality and structure
+    // Step 0: Determine if input is customer ID or order ID and resolve to customer ID
+    let actualCustomerId = customerIdOrOrderId;
+    const isOrderId = this.isOrderId(customerIdOrOrderId);
+    
+    if (isOrderId) {
+      console.log("🔍 Step 0: Resolving order ID to customer ID", profileId);
+      try {
+        const orderRequest: ApiRequest = {
+          url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order/${customerIdOrOrderId}`,
+          method: "GET",
+          token: token.trim(),
+        };
+        
+        const orderData = await this.makeRequest(orderRequest);
+        
+        if (orderData.status === 200 && orderData.data && orderData.data.data) {
+          const order = orderData.data.data;
+          actualCustomerId = order.customerId || order.customer_id || order.userId || order.user_id;
+          
+          if (!actualCustomerId) {
+            throw new Error(`Could not extract customer ID from order ${customerIdOrOrderId}`);
+          }
+          
+          console.log("✅ Resolved customer ID:", actualCustomerId);
+        } else {
+          throw new Error(`Order ${customerIdOrOrderId} not found or invalid response`);
+        }
+      } catch (error) {
+        console.error("❌ Step 0 failed - order resolution:", error);
+        throw new Error(`Failed to resolve order ID ${customerIdOrOrderId} to customer ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
     
     // Initialize profile object - this matches the original structure exactly
     const profile: any = {
-      customerId,
+      customerId: actualCustomerId,
+      originalInput: customerIdOrOrderId,
       fullName: "",
       addresses: [],
       phoneNumber: "",
@@ -192,7 +235,7 @@ export class BrandsForLessService extends ApiService {
     try {
       console.log("🏠 Step 1: Fetching address data", profileId);
       const addressRequest: ApiRequest = {
-        url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${customerId}`,
+        url: `https://api.brandsforlessuae.com/customer/api/v1/address?customerId=${actualCustomerId}`,
         method: "GET",
         token: token.trim(),
       };
@@ -207,7 +250,7 @@ export class BrandsForLessService extends ApiService {
         // Extract basic profile info from the actual API structure
         // Check if user is a guest and skip
         if (customerData.guest === 1 || customerData.isGuest === true || customerData.guest === "1") {
-          throw new Error(`Customer ${customerId} is a guest user - skipping profile collection`);
+          throw new Error(`Customer ${actualCustomerId} is a guest user - skipping profile collection`);
         }
         
         // Extract name properly from firstname + lastname fields (address data uses lowercase)
@@ -236,7 +279,7 @@ export class BrandsForLessService extends ApiService {
     try {
       console.log("📦 Step 2: Fetching orders data", profileId);
       const ordersRequest: ApiRequest = {
-        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${customerId}&pageNum=1&pageSize=1000`,
+        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${actualCustomerId}&pageNum=1&pageSize=1000`,
         method: "GET",
         token: token.trim(),
       };
@@ -367,7 +410,7 @@ export class BrandsForLessService extends ApiService {
       try {
         console.log("👤 Step 3: Fetching user data (name missing)", profileId);
         const userRequest: ApiRequest = {
-          url: `https://api.brandsforlessuae.com/customer/api/v1/user?customerId=${customerId}`,
+          url: `https://api.brandsforlessuae.com/customer/api/v1/user?customerId=${actualCustomerId}`,
           method: "GET",
           token: token.trim(),
         };
@@ -397,7 +440,7 @@ export class BrandsForLessService extends ApiService {
     try {
       console.log("🔐 Step 4: Fetching PII data", profileId);
       const piiRequest: ApiRequest = {
-        url: `https://api.brandsforlessuae.com/customer/api/v1/pii?customerId=${customerId}`,
+        url: `https://api.brandsforlessuae.com/customer/api/v1/pii?customerId=${actualCustomerId}`,
         method: "GET",
         token: token.trim(),
       };
