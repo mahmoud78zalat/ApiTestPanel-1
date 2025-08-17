@@ -101,6 +101,8 @@ export const useBulkProcessing = () => {
     };
 
     setProcessingState(initialState);
+    
+    // Immediately call onProgress with initial state to update performance monitoring
     config.onProgress(initialState);
 
     config.onDebugLog('info', '🚀 Bulk Processing Started', {

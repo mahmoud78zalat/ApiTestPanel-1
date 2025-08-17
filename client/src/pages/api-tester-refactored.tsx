@@ -249,6 +249,16 @@ export default function ApiTesterRefactored() {
     setShowDebugPanel(true);
     startMonitoring(customerIds.length);
     
+    // Initialize performance monitoring with correct total count
+    updateMetrics({
+      totalItems: customerIds.length,
+      processedItems: 0,
+      successfulItems: 0,
+      failedItems: 0,
+      averageProcessingTime: 0,
+      activeConnections: 0
+    });
+    
     logProcessStep(1, "Bulk Processing Initialization", {
       totalCustomers: customerIds.length,
       batchingEnabled: true,
