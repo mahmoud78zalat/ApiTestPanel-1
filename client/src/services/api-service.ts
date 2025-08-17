@@ -188,7 +188,7 @@ export class BrandsForLessService extends ApiService {
     const profile: any = {
       customerId: actualCustomerId,
       originalInput: customerIdOrOrderId,
-      fullName: "",
+      fullName: null, // Start with null to track if we found actual data
       addresses: [],
       phoneNumber: "",
       email: "",
@@ -210,6 +210,14 @@ export class BrandsForLessService extends ApiService {
       const addressData = await this.makeRequest(addressRequest);
       
       if (addressData.status === 200 && addressData.data) {
+        // Validate that we received actual data, not just an empty response
+        const hasValidData = addressData.data && 
+          (Array.isArray(addressData.data) ? addressData.data.length > 0 : 
+           (addressData.data.data && Array.isArray(addressData.data.data) ? addressData.data.data.length > 0 : true));
+        
+        if (!hasValidData) {
+          throw new Error(`No address data found for customer ${actualCustomerId}`);
+        }
         // Handle both array and object response formats
         const customerDataArray = Array.isArray(addressData.data) ? addressData.data : addressData.data.data || [addressData.data];
         const customerData = customerDataArray.length > 0 ? customerDataArray[0] : {};
@@ -259,7 +267,7 @@ export class BrandsForLessService extends ApiService {
       const ordersData = await this.makeRequest(ordersRequest);
       
       if (ordersData.status === 200 && ordersData.data) {
-        // Handle different response structures
+        // Validate that we received actual order data
         let orders = [];
         if (Array.isArray(ordersData.data)) {
           orders = ordersData.data;
@@ -268,6 +276,8 @@ export class BrandsForLessService extends ApiService {
         } else if (ordersData.data.orders && Array.isArray(ordersData.data.orders)) {
           orders = ordersData.data.orders;
         }
+        
+        // Continue processing even if no orders found (customer might not have ordered yet)
         
         // Sort by date and take latest orders  
         const sortedOrders = orders.sort((a: any, b: any) => {
@@ -534,9 +544,26 @@ export class BrandsForLessService extends ApiService {
       // PII fetch failed silently
     }
 
-    // Final validation
-    if (!profile.fullName || profile.fullName.trim() === "") {
-      profile.fullName = "Unknown Customer";
+    // Final validation - ensure we have meaningful customer data
+    const hasBasicInfo = profile.fullName && profile.fullName !== null && profile.fullName.trim() !== "";
+    const hasContactInfo = (profile.phoneNumber && profile.phoneNumber.trim() !== "") || 
+                          (profile.email && profile.email.trim() !== "");
+    const hasAddressData = profile.addresses && profile.addresses.length > 0;
+    const hasOrderData = profile.latestOrders && profile.latestOrders.length > 0;
+    
+    // If we have no meaningful data at all, this customer likely doesn't exist
+    if (!hasBasicInfo && !hasContactInfo && !hasAddressData && !hasOrderData) {
+      throw new Error(`Customer ${actualCustomerId} not found - no profile data available`);
+    }
+    
+    // Only set "Unknown Customer" as last resort if we have some data but no name
+    if (!hasBasicInfo) {
+      // Ensure we have at least some other data to justify keeping this profile
+      if (hasContactInfo || hasAddressData || hasOrderData) {
+        profile.fullName = "Unknown Customer";
+      } else {
+        throw new Error(`Customer ${actualCustomerId} - insufficient data to create profile`);
+      }
     }
 
     const endTime = performance.now();

@@ -250,6 +250,11 @@ export const useBulkProcessing = () => {
     const failures: Array<{ customerId: string; error: string; attempt: number }> = [];
     let duplicates = 0;
 
+    // Add small delay for bulk processing to avoid overwhelming the API
+    if (batchIds.length > 1) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     // Process all items in the batch concurrently
     const promises = batchIds.map(async (customerId) => {
       if (abortSignal.aborted) {
@@ -277,18 +282,30 @@ export const useBulkProcessing = () => {
 
           const profile = await BrandsForLessService.fetchCustomerProfile(customerId, token);
           
-          if (profile) {
-            profiles.push(profile);
-            existingCustomerIds.add(customerId); // Prevent duplicates within same batch
+          // Validate that we got meaningful profile data
+          if (profile && profile.customerId) {
+            // Extra validation to avoid processing "Unknown Customer" with no real data
+            const hasRealData = profile.fullName !== "Unknown Customer" || 
+                               (profile.addresses && profile.addresses.length > 0) ||
+                               (profile.latestOrders && profile.latestOrders.length > 0) ||
+                               (profile.phoneNumber && profile.phoneNumber.trim() !== "") ||
+                               (profile.email && profile.email.trim() !== "");
             
-            config.onProfileProcessed(profile, false);
-            config.onDebugLog('success', `✅ Profile Fetched: ${customerId}`, {
-              customerName: profile.fullName,
-              totalOrders: profile.totalOrdersCount,
-              totalValue: profile.totalPurchasesAmount
-            });
-            
-            return profile;
+            if (hasRealData) {
+              profiles.push(profile);
+              existingCustomerIds.add(customerId); // Prevent duplicates within same batch
+              
+              config.onProfileProcessed(profile, false);
+              config.onDebugLog('success', `✅ Profile Fetched: ${customerId}`, {
+                customerName: profile.fullName,
+                totalOrders: profile.totalOrdersCount,
+                totalValue: profile.totalPurchasesAmount
+              });
+              
+              return profile;
+            } else {
+              throw new Error('Profile has no meaningful data');
+            }
           } else {
             throw new Error('No profile data returned');
           }
