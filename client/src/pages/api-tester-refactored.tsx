@@ -155,10 +155,6 @@ export default function ApiTesterRefactored() {
     if (bulkMode && isProcessing) {
       stopProcessing();
       stopMonitoring();
-      toast({
-        title: "Processing Stopped",
-        description: "Bulk processing has been stopped by user request",
-      });
       return;
     }
     

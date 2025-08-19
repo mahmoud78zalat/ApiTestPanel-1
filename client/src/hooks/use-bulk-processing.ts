@@ -403,14 +403,26 @@ export const useBulkProcessing = () => {
   }, []);
 
   /**
-   * Stop processing by setting the stop flag
+   * Stop processing by setting the stop flag and updating state immediately
    */
   const stopProcessing = useCallback(() => {
     setShouldStop(true);
     if (abortController.current) {
       abortController.current.abort();
     }
-  }, []);
+    
+    // Immediately update processing state to reflect stop
+    setProcessingState(prev => ({
+      ...prev,
+      isProcessing: false
+    }));
+
+    toast({
+      title: "Processing Stopped",
+      description: "Bulk processing has been stopped by user request",
+      variant: "destructive",
+    });
+  }, [toast]);
 
   return {
     processingState,

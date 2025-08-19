@@ -7,15 +7,36 @@
 import type { CustomerProfile } from "@shared/schema";
 
 /**
+ * Helper function to check if profile has fallback address from shipping data
+ */
+const hasFallbackAddress = (profile: CustomerProfile): boolean => {
+  if (!profile.latestOrders?.length) return false;
+  
+  // Look for shipping address in latest orders
+  for (const order of profile.latestOrders.slice(0, 3)) {
+    // Check enriched data first (priority 1)
+    if (order?.enrichedData?.shippingAddress) {
+      return true;
+    }
+    // Fallback to direct order properties (priority 2)
+    else if (order?.shippingAddress) {
+      return true;
+    }
+  }
+  
+  return false;
+};
+
+/**
  * Checks if a customer profile is considered incomplete
- * A profile is incomplete if it's missing address, birth date, or gender
+ * A profile is incomplete if it's missing address (including fallback), birth date, or gender
  * 
  * @param profile - Customer profile to validate
  * @returns true if profile is incomplete, false otherwise
  */
 export const isIncompleteProfile = (profile: CustomerProfile): boolean => {
-  // Check if no addresses are saved
-  const hasNoAddress = !profile.addresses || profile.addresses.length === 0;
+  // Check if no addresses are saved (considering fallback addresses)
+  const hasNoAddress = (!profile.addresses || profile.addresses.length === 0) && !hasFallbackAddress(profile);
   
   // Check if birth date is missing
   const hasNoBirthDate = !profile.birthDate || profile.birthDate.trim() === '';
@@ -57,7 +78,8 @@ export const categorizeProfiles = (profiles: CustomerProfile[]) => {
 export const getIncompleteReasons = (profile: CustomerProfile): string[] => {
   const reasons: string[] = [];
   
-  if (!profile.addresses || profile.addresses.length === 0) {
+  // Check for addresses including fallback logic
+  if ((!profile.addresses || profile.addresses.length === 0) && !hasFallbackAddress(profile)) {
     reasons.push('No saved addresses');
   }
   
@@ -89,7 +111,7 @@ export const getIncompleteStats = (profiles: CustomerProfile[]) => {
     if (incomplete) {
       totalIncomplete++;
       
-      if (!profile.addresses || profile.addresses.length === 0) {
+      if ((!profile.addresses || profile.addresses.length === 0) && !hasFallbackAddress(profile)) {
         missingAddress++;
       }
       if (!profile.birthDate || profile.birthDate.trim() === '') {

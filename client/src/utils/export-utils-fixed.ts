@@ -1,8 +1,8 @@
 /**
- * Export Utility Functions - Complete Fix
+ * Export Utility Functions - Complete Fix with Fallback Address Logic
  * 
  * This module provides utilities for exporting customer profile data to various formats
- * with proper order amount, status, payment field, and address handling
+ * with proper order amount, status, payment field, and address handling with shipping fallbacks
  */
 
 import type { CustomerProfile } from "@shared/schema";
@@ -86,53 +86,67 @@ const extractOrderStatus = (order: any): string => {
 };
 
 /**
- * Helper function to extract payment method from order
+ * Helper function to extract payment method from various fields
  */
 const extractPaymentMethod = (order: any): string => {
-  return order.paymentMethod || 
-         order.payment || 
-         order.paymentType || 
-         order.method ||
-         order.paymentExtraInfo ||
-         order.paymentGateWay ||
-         'Not available';
+  return order.paymentGateway ||
+         order.paymentMethod ||
+         order.gateway ||
+         order.payment ||
+         'Unknown';
 };
 
 /**
  * Helper function to extract address line from address object
  */
 const extractAddressLine = (addr: any): string => {
-  return addr.addressLine1 || 
-         addr.address || 
-         addr.fullAddress || 
-         addr.street ||
-         addr.streetAddress ||
-         'No address';
+  return addr.address || addr.addressLine1 || addr.street || addr.line1 || 'Address not available';
 };
 
 /**
  * Helper function to extract city from address object
  */
 const extractCity = (addr: any): string => {
-  return addr.city || 
-         addr.cityName || 
-         'Unknown';
+  return addr.city || addr.town || addr.locality || 'Unknown';
 };
 
 /**
  * Helper function to extract country from address object
  */
 const extractCountry = (addr: any): string => {
-  return addr.country || 
-         addr.countryName || 
-         'Unknown';
+  return normalizeCountryName(addr.country || addr.countryName || addr.countryCode || 'Unknown');
 };
 
 /**
- * Exports customer profiles to CSV format
- * 
- * @param profiles - Array of customer profiles to export
- * @returns CSV content as string
+ * Get address information with fallback logic
+ */
+const getAddressInfo = (profile: CustomerProfile) => {
+  if (profile.addresses && profile.addresses.length > 0) {
+    const addr = profile.addresses[0];
+    return {
+      address: extractAddressLine(addr),
+      city: extractCity(addr),
+      country: extractCountry(addr),
+      type: 'stored'
+    };
+  } else {
+    // Check for fallback address from shipping data
+    const fallbackAddress = getFallbackAddressFromOrders(profile.latestOrders || []);
+    if (fallbackAddress) {
+      return fallbackAddress;
+    }
+  }
+  
+  return {
+    address: 'None saved',
+    city: 'Unknown',
+    country: 'Unknown',
+    type: 'none'
+  };
+};
+
+/**
+ * Exports customer profile data to CSV format with improved address handling
  */
 export const exportToCSV = (profiles: CustomerProfile[]): string => {
   if (profiles.length === 0) return '';
@@ -152,6 +166,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
     'Primary Address',
     'Primary City',
     'Primary Country',
+    'Address Type',
     'Profile Status',
     'Missing Fields',
     'Order 1 ID',
@@ -180,8 +195,9 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
   // Group profiles by country with improved country detection
   const groupProfilesByCountry = (profileList: CustomerProfile[]) => {
     return profileList.reduce((acc, profile) => {
-      // First try to get country from address
-      let country = profile.addresses?.[0] ? extractCountry(profile.addresses[0]) : undefined;
+      // First try to get country from address with fallback
+      const addressInfo = getAddressInfo(profile);
+      let country = addressInfo.country;
       
       // If no address country, try to determine from currency
       if (!country || country === 'Unknown') {
@@ -212,87 +228,50 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
     return bTotal - aTotal;
   });
 
-  // Generate CSV rows
+  // Generate CSV content
   let csvContent = headers.join(',') + '\n';
 
   for (const country of sortedCountries) {
-    // First add complete profiles for this country
-    const countryCompleteProfiles = completeProfilesByCountry[country] || [];
-    const sortedCompleteProfiles = countryCompleteProfiles
-      .sort((a, b) => (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0));
-    
-    for (const profile of sortedCompleteProfiles) {
+    const countryProfiles = [
+      ...(completeProfilesByCountry[country] || []),
+      ...(incompleteProfilesByCountry[country] || [])
+    ];
+
+    for (const profile of countryProfiles) {
       const currency = getActualCurrency(profile.latestOrders);
-      const primaryAddress = profile.addresses?.[0];
-      const shippingAddressFallback = !primaryAddress ? getShippingAddressFromOrders(profile.latestOrders || []) : '';
-      const incompleteReasons = getIncompleteReasons(profile);
-      
+      const addressInfo = getAddressInfo(profile);
+      const missingFields = getIncompleteReasons(profile);
+      const profileStatus = missingFields.length === 0 ? 'Complete' : 'Incomplete';
+
       const row = [
-        profile.customerId,
-        `"${profile.fullName}"`,
+        profile.customerId || '',
+        profile.fullName || '',
         profile.email || '',
         profile.phoneNumber || '',
         formatDate(profile.birthDate),
         profile.gender || '',
         formatDate(profile.registerDate),
-        profile.totalOrdersCount?.toString() || '0',
+        profile.totalOrdersCount || 0,
         formatCurrency(profile.totalPurchasesAmount, currency),
-        profile.addresses?.length?.toString() || '0',
-        `"${primaryAddress ? extractAddressLine(primaryAddress) : ''}"`,
-        primaryAddress ? extractCity(primaryAddress) : '',
-        primaryAddress ? extractCountry(primaryAddress) : country,
-        'Complete',
-        '',
-        // First 3 orders with proper field extraction
-        ...(profile.latestOrders?.slice(0, 3).flatMap((order: any) => [
-          order.orderId || '',
-          formatDate(order.orderDate || order.createDate),
-          formatCurrency(extractOrderAmount(order), currency),
-          extractOrderStatus(order),
-          extractPaymentMethod(order),
-          order.invoiceUrl || ''
-        ]) || Array(18).fill(''))
-      ];
-
-      csvContent += row.join(',') + '\n';
-    }
-
-    // Then add incomplete profiles for this country
-    const countryIncompleteProfiles = incompleteProfilesByCountry[country] || [];
-    const sortedIncompleteProfiles = countryIncompleteProfiles
-      .sort((a, b) => (b.totalPurchasesAmount || 0) - (a.totalPurchasesAmount || 0));
-    
-    for (const profile of sortedIncompleteProfiles) {
-      const currency = getActualCurrency(profile.latestOrders);
-      const primaryAddress = profile.addresses?.[0];
-      const shippingAddressFallback = !primaryAddress ? getShippingAddressFromOrders(profile.latestOrders || []) : '';
-      const incompleteReasons = getIncompleteReasons(profile);
-      
-      const row = [
-        profile.customerId,
-        `"${profile.fullName}"`,
-        profile.email || '',
-        profile.phoneNumber || '',
-        formatDate(profile.birthDate),
-        profile.gender || '',
-        formatDate(profile.registerDate),
-        profile.totalOrdersCount?.toString() || '0',
-        formatCurrency(profile.totalPurchasesAmount, currency),
-        profile.addresses?.length?.toString() || '0',
-        `"${primaryAddress ? extractAddressLine(primaryAddress) : shippingAddressFallback}"`,
-        primaryAddress ? extractCity(primaryAddress) : '',
-        primaryAddress ? extractCountry(primaryAddress) : country,
-        'Incomplete',
-        `"${incompleteReasons.join('; ')}"`,
-        // First 3 orders with proper field extraction for incomplete profiles
-        ...(profile.latestOrders?.slice(0, 3).flatMap((order: any) => [
-          order.orderId || '',
-          formatDate(order.orderDate || order.createDate),
-          formatCurrency(extractOrderAmount(order), currency),
-          extractOrderStatus(order),
-          extractPaymentMethod(order),
-          order.invoiceUrl || ''
-        ]) || Array(18).fill(''))
+        profile.addresses?.length || 0,
+        addressInfo.type === 'shipping_fallback' ? `${addressInfo.address} (Approximate)` : addressInfo.address,
+        addressInfo.city,
+        addressInfo.country,
+        addressInfo.type === 'shipping_fallback' ? 'Shipping Fallback' : addressInfo.type === 'stored' ? 'Stored' : 'None',
+        profileStatus,
+        missingFields.join('; '),
+        // Order details (up to 3 orders)
+        ...(Array(3).fill(null).flatMap((_, orderIndex) => {
+          const order = profile.latestOrders?.[orderIndex];
+          return order ? [
+            order.orderId || '',
+            formatDate(order.orderDate || order.createDate),
+            formatCurrency(extractOrderAmount(order), currency),
+            extractOrderStatus(order),
+            extractPaymentMethod(order),
+            order.invoiceUrl || ''
+          ] : Array(6).fill('')
+        }))
       ];
 
       csvContent += row.join(',') + '\n';
@@ -303,10 +282,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
 };
 
 /**
- * Exports customer profiles to TXT format
- * 
- * @param profiles - Array of customer profiles to export
- * @returns TXT content as string
+ * Exports customer profile data to TXT format with improved address handling
  */
 export const exportToTXT = (profiles: CustomerProfile[]): string => {
   if (profiles.length === 0) return 'No customer profiles to export.';
@@ -324,8 +300,9 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
   // Group profiles by country with improved country detection
   const groupProfilesByCountry = (profileList: CustomerProfile[]) => {
     return profileList.reduce((acc, profile) => {
-      // First try to get country from address
-      let country = profile.addresses?.[0] ? extractCountry(profile.addresses[0]) : undefined;
+      // First try to get country from address with fallback
+      const addressInfo = getAddressInfo(profile);
+      let country = addressInfo.country;
       
       // If no address country, try to determine from currency
       if (!country || country === 'Unknown') {
@@ -376,6 +353,7 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
 
       for (const profile of sortedCompleteProfiles) {
         const currency = getActualCurrency(profile.latestOrders);
+        const addressInfo = getAddressInfo(profile);
         
         content += `Customer ID: ${profile.customerId}\n`;
         content += `Full Name: ${profile.fullName}\n`;
@@ -391,20 +369,17 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
         content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
         
-        if (profile.addresses && profile.addresses.length > 0) {
-          content += `\nADDRESSES (${profile.addresses.length}):\n`;
-          profile.addresses.forEach((addr, idx) => {
-            const addressLine = extractAddressLine(addr);
-            const city = extractCity(addr);
-            const country = extractCountry(addr);
-            
-            content += `  ${idx + 1}. ${addressLine}\n`;
-            content += `     City: ${city}, Country: ${country}\n`;
-            if (addr.area) content += `     Area: ${addr.area}\n`;
-            if (addr.zipcode || addr.zipCode) content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
-          });
-        } else {
+        // Handle addresses with fallback logic
+        if (addressInfo.type === 'none') {
           content += `\nADDRESSES: None saved\n`;
+        } else if (addressInfo.type === 'shipping_fallback') {
+          content += `\nADDRESSES (1 - Approximate from latest order):\n`;
+          content += `  1. ${addressInfo.address}\n`;
+          content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
+        } else {
+          content += `\nADDRESSES (${profile.addresses?.length || 1}):\n`;
+          content += `  1. ${addressInfo.address}\n`;
+          content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
         }
         
         if (profile.latestOrders && profile.latestOrders.length > 0) {
@@ -444,6 +419,7 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
       for (const profile of sortedIncompleteProfiles) {
         const currency = getActualCurrency(profile.latestOrders);
         const incompleteReasons = getIncompleteReasons(profile);
+        const addressInfo = getAddressInfo(profile);
         
         content += `Customer ID: ${profile.customerId}\n`;
         content += `Full Name: ${profile.fullName}\n`;
@@ -460,20 +436,17 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
         content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
         
-        if (profile.addresses && profile.addresses.length > 0) {
-          content += `\nADDRESSES (${profile.addresses.length}):\n`;
-          profile.addresses.forEach((addr, idx) => {
-            const addressLine = extractAddressLine(addr);
-            const city = extractCity(addr);
-            const country = extractCountry(addr);
-            
-            content += `  ${idx + 1}. ${addressLine}\n`;
-            content += `     City: ${city}, Country: ${country}\n`;
-            if (addr.area) content += `     Area: ${addr.area}\n`;
-            if (addr.zipcode || addr.zipCode) content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
-          });
-        } else {
+        // Handle addresses with fallback logic
+        if (addressInfo.type === 'none') {
           content += `\nADDRESSES: None saved\n`;
+        } else if (addressInfo.type === 'shipping_fallback') {
+          content += `\nADDRESSES (1 - Approximate from latest order):\n`;
+          content += `  1. ${addressInfo.address}\n`;
+          content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
+        } else {
+          content += `\nADDRESSES (${profile.addresses?.length || 1}):\n`;
+          content += `  1. ${addressInfo.address}\n`;
+          content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
         }
         
         if (profile.latestOrders && profile.latestOrders.length > 0) {
@@ -523,32 +496,4 @@ export const downloadFile = (content: string, filename: string, mimeType: string
   document.body.removeChild(link);
   
   URL.revokeObjectURL(url);
-};
-
-/**
- * Parses uploaded file content based on format
- * 
- * @param content - File content as string
- * @param format - Format to parse ('csv' | 'txt')
- * @returns Array of customer IDs or values extracted from the file
- */
-export const parseFileContent = (content: string, format: ExportFormat): string[] => {
-  const lines = content.split('\n').filter(line => line.trim() !== '');
-  
-  if (format === 'csv') {
-    // Skip header row and extract first column (Customer ID)
-    return lines.slice(1).map(line => {
-      const columns = line.split(',');
-      return columns[0]?.replace(/"/g, '').trim() || '';
-    }).filter(id => id !== '');
-  } else {
-    // For TXT format, extract customer IDs from "Customer ID: " lines
-    return lines
-      .filter(line => line.includes('Customer ID:'))
-      .map(line => {
-        const match = line.match(/Customer ID:\s*(.+)/);
-        return match ? match[1].trim() : '';
-      })
-      .filter(id => id !== '');
-  }
 };

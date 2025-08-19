@@ -7,7 +7,8 @@
 import { useState, useCallback } from "react";
 import type { CustomerProfile } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { exportToCSV, exportToTXT, downloadFile, parseFileContent } from "@/utils/export-utils";
+import { exportToCSV, exportToTXT, downloadFile } from "@/utils/export-utils-fixed";
+import { parseFileContent } from "@/utils/export-utils";
 import type { ExportFormat } from "@/utils/export-utils";
 import { getShippingAddressFromOrders } from "@/utils/currency-utils";
 
