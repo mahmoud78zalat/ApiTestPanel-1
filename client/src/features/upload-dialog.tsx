@@ -299,7 +299,7 @@ export function UploadDialog({ open, onOpenChange, onFileProcessed }: UploadDial
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm font-medium mb-2">Preview (first 5 customers):</div>
-                <div className="space-y-2">
+                <div className="max-h-48 overflow-y-auto space-y-2">
                   {previewData.map((customer, index) => (
                     <div key={index} className="text-xs bg-gray-100 p-2 rounded">
                       <div className="font-medium text-blue-900">ID: {customer.customerId}</div>
