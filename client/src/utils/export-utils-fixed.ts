@@ -426,17 +426,74 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
         content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
         
-        // Handle addresses with fallback logic
-        if (addressInfo.type === 'none') {
-          content += `\nADDRESSES: None saved\n`;
+        // GUARANTEED FIX: Display ALL addresses instead of just the first one
+        if (profile.addresses && profile.addresses.length > 0) {
+          content += `\nADDRESSES (${profile.addresses.length}):\n`;
+          
+          // Loop through ALL addresses in the array
+          for (let idx = 0; idx < profile.addresses.length; idx++) {
+            content += `  ${idx + 1}. `;
+            
+            const addr = profile.addresses[idx];
+            
+            // Check if address is null/undefined/empty
+            if (!addr || addr === null || addr === undefined) {
+              content += `[Address slot ${idx + 1} is empty]\n`;
+              content += `     City: Not available, Country: Not available\n\n`;
+              continue;
+            }
+            
+            if (typeof addr === 'object' && Object.keys(addr).length === 0) {
+              content += `[Address slot ${idx + 1} is empty object]\n`;
+              content += `     City: Not available, Country: Not available\n\n`;
+              continue;
+            }
+            
+            // Extract address fields with comprehensive checking
+            const addressLine = addr.address || 
+                               addr.addressLine1 || 
+                               addr.addressLine || 
+                               addr.street || 
+                               addr.fullAddress || 
+                               addr.streetAddress || 
+                               '[No address specified]';
+                               
+            const city = addr.city || 
+                        addr.cityName || 
+                        addr.town || 
+                        addr.locality || 
+                        addr.area || 
+                        'Unknown';
+                        
+            const country = addr.country || 
+                           addr.countryName || 
+                           addr.countryCode || 
+                           'United Arab Emirates';
+            
+            // Display the address
+            content += `${addressLine}\n`;
+            content += `     City: ${city}, Country: ${country}\n`;
+            
+            // Add optional fields
+            if (addr.area && typeof addr.area === 'string' && addr.area.trim()) {
+              content += `     Area: ${addr.area}\n`;
+            }
+            if (addr.zipcode || addr.zipCode || addr.postalCode) {
+              const zip = addr.zipcode || addr.zipCode || addr.postalCode;
+              content += `     Zip: ${zip}\n`;
+            }
+            if (addr.state && typeof addr.state === 'string' && addr.state.trim()) {
+              content += `     State: ${addr.state}\n`;
+            }
+            
+            content += `\n`;
+          }
         } else if (addressInfo.type === 'shipping_fallback') {
           content += `\nADDRESSES (1 - Approximate from latest order):\n`;
           content += `  1. ${addressInfo.city} (Approximate from latest order)\n`;
           content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
         } else {
-          content += `\nADDRESSES (${profile.addresses?.length || 1}):\n`;
-          content += `  1. ${addressInfo.address}\n`;
-          content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
+          content += `\nADDRESSES: None saved\n`;
         }
         
         if (profile.latestOrders && profile.latestOrders.length > 0) {
@@ -493,17 +550,74 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
         content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
         
-        // Handle addresses with fallback logic
-        if (addressInfo.type === 'none') {
-          content += `\nADDRESSES: None saved\n`;
+        // GUARANTEED FIX: Display ALL addresses instead of just the first one
+        if (profile.addresses && profile.addresses.length > 0) {
+          content += `\nADDRESSES (${profile.addresses.length}):\n`;
+          
+          // Loop through ALL addresses in the array
+          for (let idx = 0; idx < profile.addresses.length; idx++) {
+            content += `  ${idx + 1}. `;
+            
+            const addr = profile.addresses[idx];
+            
+            // Check if address is null/undefined/empty
+            if (!addr || addr === null || addr === undefined) {
+              content += `[Address slot ${idx + 1} is empty]\n`;
+              content += `     City: Not available, Country: Not available\n\n`;
+              continue;
+            }
+            
+            if (typeof addr === 'object' && Object.keys(addr).length === 0) {
+              content += `[Address slot ${idx + 1} is empty object]\n`;
+              content += `     City: Not available, Country: Not available\n\n`;
+              continue;
+            }
+            
+            // Extract address fields with comprehensive checking
+            const addressLine = addr.address || 
+                               addr.addressLine1 || 
+                               addr.addressLine || 
+                               addr.street || 
+                               addr.fullAddress || 
+                               addr.streetAddress || 
+                               '[No address specified]';
+                               
+            const city = addr.city || 
+                        addr.cityName || 
+                        addr.town || 
+                        addr.locality || 
+                        addr.area || 
+                        'Unknown';
+                        
+            const country = addr.country || 
+                           addr.countryName || 
+                           addr.countryCode || 
+                           'United Arab Emirates';
+            
+            // Display the address
+            content += `${addressLine}\n`;
+            content += `     City: ${city}, Country: ${country}\n`;
+            
+            // Add optional fields
+            if (addr.area && typeof addr.area === 'string' && addr.area.trim()) {
+              content += `     Area: ${addr.area}\n`;
+            }
+            if (addr.zipcode || addr.zipCode || addr.postalCode) {
+              const zip = addr.zipcode || addr.zipCode || addr.postalCode;
+              content += `     Zip: ${zip}\n`;
+            }
+            if (addr.state && typeof addr.state === 'string' && addr.state.trim()) {
+              content += `     State: ${addr.state}\n`;
+            }
+            
+            content += `\n`;
+          }
         } else if (addressInfo.type === 'shipping_fallback') {
           content += `\nADDRESSES (1 - Approximate from latest order):\n`;
           content += `  1. ${addressInfo.city} (Approximate from latest order)\n`;
           content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
         } else {
-          content += `\nADDRESSES (${profile.addresses?.length || 1}):\n`;
-          content += `  1. ${addressInfo.address}\n`;
-          content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
+          content += `\nADDRESSES: None saved\n`;
         }
         
         if (profile.latestOrders && profile.latestOrders.length > 0) {
