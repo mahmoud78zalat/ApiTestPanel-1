@@ -88,12 +88,13 @@ export const useBulkProcessing = () => {
       ...options
     };
 
-    // Initialize processing state and reset flags
+    // Initialize processing state and reset ALL flags
     const startTime = Date.now();
     const totalBatches = Math.ceil(customerIds.length / config.batchSize);
     
-    // Reset state and create new abort controller for this processing session
+    // Reset ALL state and create new abort controller for this processing session
     setShouldStop(false);
+    setShouldPause(false);
     processingTimes.current = [];
     abortController.current = new AbortController();
 
@@ -557,7 +558,9 @@ export const useBulkProcessing = () => {
       return [];
     }
 
+    // Reset all stop and pause flags before resuming
     setShouldPause(false);
+    setShouldStop(false);
     
     // Resume from checkpoint
     return processBulkCustomerIds(
@@ -625,6 +628,7 @@ export const useBulkProcessing = () => {
 
   /**
    * Stop processing by setting the stop flag and updating state immediately
+   * Creates a checkpoint so processing can be resumed later
    */
   const stopProcessing = useCallback(() => {
     setShouldStop(true);
@@ -632,16 +636,16 @@ export const useBulkProcessing = () => {
       abortController.current.abort();
     }
     
-    // Immediately update processing state to reflect stop
+    // Update processing state to reflect stop but allow resuming (like pause)
     setProcessingState(prev => ({
       ...prev,
-      isProcessing: false
+      isProcessing: false,
+      isPaused: true // Set to paused so it can be resumed
     }));
 
     toast({
       title: "Processing Stopped",
-      description: "Bulk processing has been stopped by user request",
-      variant: "destructive",
+      description: "Processing has been stopped. You can resume from this point anytime.",
     });
   }, [toast]);
 
