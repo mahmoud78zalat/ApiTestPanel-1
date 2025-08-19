@@ -323,6 +323,67 @@ export default function ApiTesterRefactored() {
     }
   };
 
+  // Handle file import - add customer IDs to collection without API processing
+  const handleFileImport = async (customerIds: string[]) => {
+    // Filter out already existing customer IDs
+    const existingCustomerIds = new Set(collectedProfiles.map(p => p.customerId));
+    const newCustomerIds = customerIds.filter(id => !existingCustomerIds.has(id));
+    const skippedCount = customerIds.length - newCustomerIds.length;
+
+    if (skippedCount > 0) {
+      addDebugLog('info', `🔍 Import Analysis`, {
+        totalImported: customerIds.length,
+        alreadyExists: skippedCount,
+        newToAdd: newCustomerIds.length,
+        duplicates: Array.from(existingCustomerIds).filter(id => customerIds.includes(id))
+      });
+    }
+
+    if (newCustomerIds.length === 0) {
+      toast({
+        title: "No New Customer IDs",
+        description: "All imported customer IDs already exist in your collection",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create basic profile objects for the new customer IDs
+    const newProfiles = newCustomerIds.map(customerId => ({
+      customerId,
+      fullName: `Customer ${customerId}`,
+      email: "",
+      phoneNumber: "",
+      dateOfBirth: "",
+      gender: "",
+      customerSegment: "",
+      totalOrdersCount: 0,
+      totalPurchasesAmount: 0,
+      lastOrderDate: "",
+      preferredLanguage: "",
+      customerLifetimeValue: 0,
+      addresses: []
+    }));
+
+    // Add the profiles to the collection
+    addProfiles(newProfiles);
+
+    const description = skippedCount > 0 
+      ? `Added ${newCustomerIds.length} customer IDs, skipped ${skippedCount} duplicates`
+      : `Successfully imported ${newCustomerIds.length} customer IDs`;
+
+    toast({
+      title: "Customer IDs Imported",
+      description,
+    });
+
+    addDebugLog('info', `📁 Customer IDs Imported to Collection`, {
+      imported: newCustomerIds.length,
+      skipped: skippedCount,
+      totalInCollection: collectedProfiles.length + newCustomerIds.length
+    });
+  };
+
   // Enhanced bulk processing function using the new professional system
   const handleBulkProcessing = async (customerIds: string[]) => {
     if (!token) {
@@ -581,7 +642,7 @@ export default function ApiTesterRefactored() {
       <UploadDialog
         open={showUploadDialog}
         onOpenChange={setShowUploadDialog}
-        onFileProcessed={handleBulkProcessing}
+        onFileProcessed={handleFileImport}
       />
     </div>
   );
