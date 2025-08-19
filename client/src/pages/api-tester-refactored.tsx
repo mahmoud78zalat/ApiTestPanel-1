@@ -108,7 +108,8 @@ export default function ApiTesterRefactored() {
     stopMonitoring,
     recordRequest,
     updateMetrics,
-    resetMetrics
+    resetMetrics,
+    updateTotalRequests
   } = usePerformanceMonitoring();
 
   // Local state for bulk mode
@@ -167,43 +168,78 @@ export default function ApiTesterRefactored() {
       const checkpoint = processingState.checkpoint;
       const preservedPerformance = checkpoint?.performanceState;
       
-      // Restart monitoring with preserved checkpoint state for continuity
+      // Parse current bulk input to check for newly added items
+      const parseBulkInput = (input: string): string[] => {
+        return input
+          .split(/[,\n\r\t\s]+/)
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+      };
+      
+      const currentValues = parseBulkInput(bulkInput);
+      const checkpointProcessedIds = checkpoint?.processedCustomerIds || [];
+      const checkpointRemainingIds = checkpoint?.remainingCustomerIds || [];
+      
+      // Calculate total: already processed + current bulk input
+      const totalRequests = (preservedPerformance?.processedSoFar || 0) + currentValues.length;
+      
+      // Restart monitoring with updated total that includes any newly added items
       if (preservedPerformance) {
-        startMonitoring(checkpoint?.remainingCustomerIds.length || 0, {
+        startMonitoring(totalRequests, {
           startTime: preservedPerformance.startTime,
           completedRequests: preservedPerformance.processedSoFar,
           successfulRequests: preservedPerformance.processedSoFar,
           processingTimes: preservedPerformance.processingTimes
         });
       } else {
-        startMonitoring(checkpoint?.remainingCustomerIds.length || 0);
+        startMonitoring(totalRequests);
       }
       
-      resumeProcessing(token, collectedProfiles, {
-        batchSize: 6,
-        maxConcurrent: 6,
-        retryAttempts: 3,
-        delayBetweenBatches: 200,
-        onProgress: (state) => {
-          updateMetrics({
-            totalItems: state.totalItems,
-            processedItems: state.processedItems,
-            successfulItems: state.successfulItems,
-            failedItems: state.failedItems,
-            averageProcessingTime: state.averageProcessingTime || 0,
-            activeConnections: Math.min(state.currentBatch || 0, 6)
-          });
-        },
-        onProfileProcessed: (profile, isDuplicate) => {
-          addProfile(profile);
-          if (isDuplicate) {
-            logDuplicateDetection(profile.customerId, 'skipped');
+      // Process current bulk input (handles both original remaining + any newly added items)
+      // Instead of resuming with checkpoint, start fresh processing with current bulk input
+      try {
+        const results = await processBulkCustomerIds(
+          currentValues,
+          token,
+          [...collectedProfiles, ...(checkpoint?.collectedProfiles || [])], // Include previously collected profiles
+          {
+            batchSize: 6,
+            maxConcurrent: 6,
+            retryAttempts: 3,
+            delayBetweenBatches: 200,
+            preservedStartTime: preservedPerformance?.startTime,
+            preservedProcessedCount: preservedPerformance?.processedSoFar || 0,
+            originalTotalCount: totalRequests,
+            onProgress: (state) => {
+              // Update performance monitoring with accurate totals
+              updateMetrics({
+                totalItems: state.totalItems,
+                processedItems: state.processedItems,
+                successfulItems: state.successfulItems,
+                failedItems: state.failedItems,
+                averageProcessingTime: state.averageProcessingTime || 0,
+                activeConnections: Math.min(state.currentBatch || 0, 6)
+              });
+            },
+            onProfileProcessed: (profile, isDuplicate) => {
+              addProfile(profile);
+              if (isDuplicate) {
+                logDuplicateDetection(profile.customerId, 'skipped');
+              }
+            },
+            onDebugLog: (level, message, data) => {
+              addDebugLog(level as "error" | "info" | "request" | "response", message, data);
+            }
           }
-        },
-        onDebugLog: (level, message, data) => {
-          addDebugLog(level as "error" | "info" | "request" | "response", message, data);
-        }
-      });
+        );
+      } catch (error) {
+        console.error('Resume processing failed:', error);
+        toast({
+          title: "Resume Failed", 
+          description: "Failed to resume processing. Please try again.",
+          variant: "destructive"
+        });
+      }
       return;
     }
     

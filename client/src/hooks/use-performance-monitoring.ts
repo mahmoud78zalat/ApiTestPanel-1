@@ -238,6 +238,17 @@ export const usePerformanceMonitoring = () => {
     }));
   }, []);
 
+  /**
+   * Update total requests when new items are added during a paused state
+   */
+  const updateTotalRequests = useCallback((newTotalRequests: number) => {
+    console.log('[Performance Monitor] Updating total requests to:', newTotalRequests);
+    setMetrics(prev => ({
+      ...prev,
+      totalRequests: Math.max(newTotalRequests, prev.completedRequests) // Ensure total is never less than completed
+    }));
+  }, []);
+
   return {
     metrics,
     isMonitoring,
@@ -246,6 +257,7 @@ export const usePerformanceMonitoring = () => {
     recordRequest,
     updateMetrics,
     resetMetrics,
-    updateCacheStats
+    updateCacheStats,
+    updateTotalRequests
   };
 };
