@@ -119,8 +119,9 @@ export const usePerformanceMonitoring = () => {
         ? (cacheStats.current.hits / totalCacheRequests) * 100
         : prev.cacheHitRate;
 
-      // Ensure total is never less than processed and never becomes 0 after being set
-      const safeTotalRequests = Math.max(bulkState.totalItems, bulkState.processedItems, prev.totalRequests);
+      // Use the bulk state's totalItems as the authoritative total
+      // Only ensure it's never less than what we've already processed
+      const safeTotalRequests = Math.max(bulkState.totalItems, bulkState.processedItems);
 
       const newMetrics = {
         ...prev,

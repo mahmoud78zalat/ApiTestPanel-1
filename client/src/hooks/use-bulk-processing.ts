@@ -254,6 +254,7 @@ export const useBulkProcessing = () => {
             ...processingState,
             isProcessing: true,
             isPaused: false,
+            totalItems: originalTotalCount, // Ensure total stays consistent
             processedItems: preservedProcessedCount + batchEnd,
             successfulItems: preservedProcessedCount + results.length,
             failedItems: batchResults?.failures?.length || 0,
