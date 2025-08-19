@@ -1,0 +1,213 @@
+
+COMPLETE PROFILES (441):
+----------------------------------------
+
+Customer ID: 663518
+Full Name: hiba mansoyr
+
+PERSONAL INFO:
+  Email: hiba_mansour89@hotmail.com
+  Phone: 971508775308
+  Birthday: 4/1/1989
+  Gender: Female
+  Registration Date: 10/25/2020
+
+ORDER SUMMARY:
+  Total Orders: 455
+  Total Purchase Amount: AED 2,741,482.32
+
+ADDRESSES (11):
+  1. the Residence central park tower al oud street shams abu dhabi facing reem park flat 2902
+     City: Abu Dhabi, Country: United Arab Emirates
+
+RECENT ORDERS (5):
+  1. Order A066351800455
+     Date: 8/19/2025
+     Amount: AED 129.00
+     Status: IN PROCESS
+     Payment: TABBY_PAY_INSTALLMENT
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30a34907dbf03b8131566d1
+  2. Order A066351800454
+     Date: 8/17/2025
+     Amount: AED 15.00
+     Status: OUT FOR DELIVERY
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30a34907dbf03b8131566d0
+  3. Order A066351800453
+     Date: 8/17/2025
+     Amount: AED 125.00
+     Status: OUT FOR DELIVERY
+     Payment: TABBY_PAY_INSTALLMENT
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30a34907dbf03b8131566d7
+  4. Order A066351800452
+     Date: 8/17/2025
+     Amount: AED 347.00
+     Status: DELIVERED
+     Payment: TABBY_PAY_INSTALLMENT
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30a34907dbf03b8131566d6
+  5. Order A066351800451
+     Date: 8/15/2025
+     Amount: AED 29.00
+     Status: OUT FOR DELIVERY
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30a34907dbf03b8131566d5
+
+----------------------------------------
+
+Customer ID: 1006893
+Full Name: jhas drei
+
+PERSONAL INFO:
+  Email: thetjhasdrei12725@gmail.com
+  Phone: 971508335469
+  Birthday: 2/6/2000
+  Gender: Female
+  Registration Date: 7/14/2022
+
+ORDER SUMMARY:
+  Total Orders: 973
+  Total Purchase Amount: AED 670,878.30
+
+ADDRESSES (1):
+  1. al hassan tower al tawoon sharja
+     City: Sharjah, Country: United Arab Emirates
+
+RECENT ORDERS (5):
+  1. Order A100689300973
+     Date: 8/19/2025
+     Amount: AED 168.00
+     Status: IN PROCESS
+     Payment: COD
+     Invoice: https://document.brandsforless.com/invoice?tk=89e20c329570b708b8131864d7
+  2. Order A100689300972
+     Date: 8/19/2025
+     Amount: AED 256.00
+     Status: IN PROCESS
+     Payment: COD
+     Invoice: https://document.brandsforless.com/invoice?tk=89e20c329570b708b8131864d6
+  3. Order A100689300971
+     Date: 8/19/2025
+     Amount: AED 403.00
+     Status: IN PROCESS
+     Payment: COD
+     Invoice: https://document.brandsforless.com/invoice?tk=89e20c329570b708b8131864d5
+  4. Order A100689300970
+     Date: 8/19/2025
+     Amount: AED 1,788.00
+     Status: CANCELLED
+     Payment: COD
+     Invoice: https://document.brandsforless.com/invoice?tk=89e20c329570b708b8131864d4
+  5. Order A100689300969
+     Date: 8/18/2025
+     Amount: AED 357.00
+     Status: CANCELLED
+     Payment: COD
+     Invoice: https://document.brandsforless.com/invoice?tk=89e20c329570b708b8131865dd
+
+----------------------------------------
+
+Customer ID: 109658
+Full Name: Eric Lobo
+
+PERSONAL INFO:
+  Email: ericlobo123@yahoo.com
+  Phone: 971505320360
+  Birthday: 1/17/1963
+  Gender: Male
+  Registration Date: 1/3/2015
+
+ORDER SUMMARY:
+  Total Orders: 4615
+  Total Purchase Amount: AED 549,081.82
+
+ADDRESSES (1):
+  1. Al Diar Dana Hotel 15th Floor, Room Number 1502 10th Street, Tourist Club Area Near Abu Dhabi Mall P.O.Box 47300 Abu Dhabi United Arab Emirates
+     City: Abu Dhabi, Country: United Arab Emirates
+
+RECENT ORDERS (5):
+  1. Order A010965804615
+     Date: 8/19/2025
+     Amount: AED 208.00
+     Status: HANDED TO SHIPPER
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30d329a7ebb03b8171762d1
+  2. Order A010965804614
+     Date: 8/18/2025
+     Amount: AED 29.00
+     Status: OUT FOR DELIVERY
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30d329a7ebb03b8171762d0
+  3. Order A010965804613
+     Date: 8/18/2025
+     Amount: AED 29.00
+     Status: OUT FOR DELIVERY
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30d329a7ebb03b8171762d7
+  4. Order A010965804612
+     Date: 8/14/2025
+     Amount: AED 36.00
+     Status: OUT FOR DELIVERY
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30d329a7ebb03b8171762d6
+  5. Order A010965804611
+     Date: 8/14/2025
+     Amount: AED 49.00
+     Status: OUT FOR DELIVERY
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30d329a7ebb03b8171762d5
+
+----------------------------------------
+
+Customer ID: 299689
+Full Name: Asmaa Elhlawany
+
+PERSONAL INFO:
+  Email: smsmelhlawany@icloud.com
+  Phone: 971501078291
+  Birthday: 6/2/1980
+  Gender: Female
+  Registration Date: 10/5/2017
+
+ORDER SUMMARY:
+  Total Orders: 1672
+  Total Purchase Amount: AED 403,219.94
+
+ADDRESSES (1):
+  1. Leaf tower Flat : 2702
+     City: Abu Dhabi, Country: United Arab Emirates
+
+RECENT ORDERS (5):
+  1. Order A029968901671
+     Date: 8/19/2025
+     Amount: AED 305.00
+     Status: HANDED TO SHIPPER
+     Payment: TABBY_PAY_INSTALLMENT
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30e3b9a7eb602b8121764d5
+  2. Order A029968901670
+     Date: 7/19/2025
+     Amount: AED 309.00
+     Status: DELIVERED
+     Payment: TABBY_PAY_INSTALLMENT
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30e3b9a7eb602b8121764d4
+  3. Order A029968901669
+     Date: 7/10/2025
+     Amount: AED 179.00
+     Status: DELIVERED
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30e3b9a7eb602b8121765dd
+  4. Order A029968901668
+     Date: 7/10/2025
+     Amount: AED 358.00
+     Status: DELIVERED
+     Payment: TABBY_PAY_INSTALLMENT
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30e3b9a7eb602b8121765dc
+  5. Order A029968901667
+     Date: 7/7/2025
+     Amount: AED 179.00
+     Status: DELIVERED
+     Payment: CC
+     Invoice: https://document.brandsforless.com/invoice?tk=89e30e3b9a7eb602b8121765d3
+
+----------------------------------------
+
+Customer 

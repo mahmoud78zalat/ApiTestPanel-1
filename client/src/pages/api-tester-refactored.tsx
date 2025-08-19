@@ -323,8 +323,17 @@ export default function ApiTesterRefactored() {
     }
   };
 
-  // Handle file import - add customer IDs to collection without API processing
+  // Handle file import - fetch actual customer data instead of creating placeholder profiles
   const handleFileImport = async (customerIds: string[]) => {
+    if (!token) {
+      toast({
+        title: "Authentication Required",
+        description: "Please provide an authentication token to fetch customer data",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Filter out already existing customer IDs
     const existingCustomerIds = new Set(collectedProfiles.map(p => p.customerId));
     const newCustomerIds = customerIds.filter(id => !existingCustomerIds.has(id));
@@ -337,6 +346,11 @@ export default function ApiTesterRefactored() {
         newToAdd: newCustomerIds.length,
         duplicates: Array.from(existingCustomerIds).filter(id => customerIds.includes(id))
       });
+
+      toast({
+        title: "Import Analysis",
+        description: `${newCustomerIds.length} new IDs to process, ${skippedCount} already exist`,
+      });
     }
 
     if (newCustomerIds.length === 0) {
@@ -348,40 +362,20 @@ export default function ApiTesterRefactored() {
       return;
     }
 
-    // Create basic profile objects for the new customer IDs
-    const newProfiles = newCustomerIds.map(customerId => ({
-      customerId,
-      fullName: `Customer ${customerId}`,
-      email: "",
-      phoneNumber: "",
-      dateOfBirth: "",
-      gender: "",
-      customerSegment: "",
-      totalOrdersCount: 0,
-      totalPurchasesAmount: 0,
-      lastOrderDate: "",
-      preferredLanguage: "",
-      customerLifetimeValue: 0,
-      addresses: []
-    }));
-
-    // Add the profiles to the collection
-    addProfiles(newProfiles);
-
-    const description = skippedCount > 0 
-      ? `Added ${newCustomerIds.length} customer IDs, skipped ${skippedCount} duplicates`
-      : `Successfully imported ${newCustomerIds.length} customer IDs`;
-
+    // Start bulk processing to fetch actual customer data
     toast({
-      title: "Customer IDs Imported",
-      description,
+      title: "Fetching Customer Data",
+      description: `Starting to process ${newCustomerIds.length} customer profiles...`,
     });
 
-    addDebugLog('info', `📁 Customer IDs Imported to Collection`, {
+    addDebugLog('info', `📁 Starting Bulk Import Processing`, {
       imported: newCustomerIds.length,
       skipped: skippedCount,
-      totalInCollection: collectedProfiles.length + newCustomerIds.length
+      method: 'API_FETCH'
     });
+
+    // Use the existing bulk processing functionality to fetch real data
+    handleBulkProcessing(newCustomerIds);
   };
 
   // Enhanced bulk processing function using the new professional system

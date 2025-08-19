@@ -227,8 +227,30 @@ export class BrandsForLessService extends ApiService {
           profile.fullName = fullName;
         }
         
-        // Store address data properly
-        profile.addresses = customerDataArray || [];
+        // Store address data properly - extract actual addresses from customer data
+        profile.addresses = [];
+        
+        // Try to extract addresses from the customer data array
+        if (customerDataArray && customerDataArray.length > 0) {
+          customerDataArray.forEach((customerRecord: any) => {
+            // Check if this record has address fields
+            if (customerRecord.address || customerRecord.addressLine1 || customerRecord.street) {
+              const addressObj = {
+                address: customerRecord.address || customerRecord.addressLine1 || customerRecord.street || '',
+                city: customerRecord.city || customerRecord.town || customerRecord.locality || '',
+                country: customerRecord.country || customerRecord.countryName || customerRecord.countryCode || '',
+                area: customerRecord.area || customerRecord.region || customerRecord.state || '',
+                zipcode: customerRecord.zipcode || customerRecord.zipCode || customerRecord.postalCode || '',
+                type: 'customer_address'
+              };
+              
+              // Only add if we have meaningful address data
+              if (addressObj.address || addressObj.city || addressObj.country) {
+                profile.addresses.push(addressObj);
+              }
+            }
+          });
+        }
         
         // Extract phone number from various possible fields
         profile.phoneNumber = customerData.phone || customerData.phoneNumber || customerData.mobile || customerData.mobileNumber || "";
@@ -532,6 +554,62 @@ export class BrandsForLessService extends ApiService {
       }
     } catch (error) {
       // PII fetch failed silently
+    }
+
+    // Extract shipping addresses from orders if no customer addresses found
+    if (profile.addresses.length === 0 && profile.latestOrders && profile.latestOrders.length > 0) {
+      const seenAddresses = new Set<string>();
+      
+      profile.latestOrders.slice(0, 10).forEach((order: any) => {
+        // Extract from enrichedData (priority 1)
+        if (order.enrichedData?.shippingAddress) {
+          const addressKey = `${order.enrichedData.shippingAddress}-${order.enrichedData.shippingState || order.enrichedData.shippingArea || ''}-${order.enrichedData.shippingCountry || ''}`;
+          
+          if (!seenAddresses.has(addressKey)) {
+            seenAddresses.add(addressKey);
+            
+            const addressObj = {
+              address: order.enrichedData.shippingAddress,
+              city: order.enrichedData.shippingState || order.enrichedData.shippingArea || order.enrichedData.shippingCity || '',
+              country: order.enrichedData.shippingCountry || 'United Arab Emirates',
+              area: order.enrichedData.shippingArea || '',
+              zipcode: order.enrichedData.shippingZip || '',
+              type: 'shipping_address'
+            };
+            
+            // Only add if not a store pickup address
+            if (!addressObj.address.toLowerCase().includes('brands for less') && 
+                !addressObj.address.toLowerCase().includes('warehouse') &&
+                !addressObj.address.toLowerCase().includes('store pickup')) {
+              profile.addresses.push(addressObj);
+            }
+          }
+        }
+        // Extract from direct order properties (priority 2)
+        else if (order.shippingAddress) {
+          const addressKey = `${order.shippingAddress}-${order.shippingState || order.shippingArea || ''}-${order.shippingCountry || ''}`;
+          
+          if (!seenAddresses.has(addressKey)) {
+            seenAddresses.add(addressKey);
+            
+            const addressObj = {
+              address: order.shippingAddress,
+              city: order.shippingState || order.shippingArea || order.shippingCity || '',
+              country: order.shippingCountry || 'United Arab Emirates',
+              area: order.shippingArea || '',
+              zipcode: order.shippingZip || '',
+              type: 'shipping_address'
+            };
+            
+            // Only add if not a store pickup address
+            if (!addressObj.address.toLowerCase().includes('brands for less') && 
+                !addressObj.address.toLowerCase().includes('warehouse') &&
+                !addressObj.address.toLowerCase().includes('store pickup')) {
+              profile.addresses.push(addressObj);
+            }
+          }
+        }
+      });
     }
 
     // Final validation - skip customers with insufficient data
