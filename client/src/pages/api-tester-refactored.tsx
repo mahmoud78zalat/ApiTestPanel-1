@@ -157,14 +157,14 @@ export default function ApiTesterRefactored() {
     // Handle stop request for bulk processing
     if (bulkMode && isProcessing) {
       stopProcessing();
-      stopMonitoring();
+      // Don't stop monitoring - preserve accumulated progress metrics
       return;
     }
     
     if (bulkMode && isPaused && hasCheckpoint) {
       // Resume from checkpoint
       setShowDebugPanel(true);
-      startMonitoring(processingState.checkpoint?.remainingCustomerIds.length || 0);
+      // Don't restart monitoring - continue with existing accumulated metrics
       
       resumeProcessing(token, collectedProfiles, {
         batchSize: 6,

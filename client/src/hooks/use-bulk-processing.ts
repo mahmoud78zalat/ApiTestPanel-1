@@ -133,8 +133,8 @@ export const useBulkProcessing = () => {
     try {
       // Process in batches for optimal performance
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        // CRITICAL: Check for pause request IMMEDIATELY - this creates a checkpoint and exits
-        if (shouldPause || abortController.current?.signal.aborted) {
+        // Check for pause request at the start of each batch (but skip on resume)
+        if ((shouldPause || abortController.current?.signal.aborted) && batchIndex > 0) {
           const remainingBatchIndex = batchIndex;
           const remainingIds = customerIds.slice(remainingBatchIndex * config.batchSize);
           
@@ -152,7 +152,7 @@ export const useBulkProcessing = () => {
             checkpoint
           }));
           
-          config.onDebugLog('info', '⏸️ Processing Paused IMMEDIATELY at Checkpoint', {
+          config.onDebugLog('info', '⏸️ Processing Paused at Checkpoint', {
             processedSoFar: results.length,
             remainingItems: remainingIds.length,
             batchIndex,
@@ -160,7 +160,7 @@ export const useBulkProcessing = () => {
             reason: shouldPause ? 'User pause requested' : 'Abort signal triggered'
           });
           
-          return results; // EXIT IMMEDIATELY with current results
+          return results; // EXIT with current results
         }
         
         // Check if processing should be stopped (but not if we just started)
@@ -191,8 +191,8 @@ export const useBulkProcessing = () => {
             abortController.current.signal
           );
           
-          // Check for abort/pause IMMEDIATELY after batch completes
-          if (shouldPause || abortController.current?.signal.aborted) {
+          // Check for pause/stop after batch completes (but not on first batch of resume)
+          if ((shouldPause || abortController.current?.signal.aborted) && batchIndex > 0) {
             config.onDebugLog('info', '⏸️ Batch completed but pausing requested', {
               batchJustCompleted: batchIndex + 1,
               nextBatch: batchIndex + 2,
@@ -587,20 +587,35 @@ export const useBulkProcessing = () => {
       return [];
     }
 
+    // Immediately update state to show we're resuming
+    setProcessingState(prev => ({
+      ...prev,
+      isProcessing: true,
+      isPaused: false
+    }));
+
     // Reset all stop and pause flags before resuming
     setShouldPause(false);
     setShouldStop(false);
     
-    // Small delay to ensure state updates are processed
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
-    // Resume from checkpoint
-    return processBulkCustomerIds(
-      processingState.checkpoint.remainingCustomerIds,
-      token,
-      [...existingProfiles, ...processingState.checkpoint.collectedProfiles],
-      options
-    );
+    try {
+      // Resume from checkpoint
+      const results = await processBulkCustomerIds(
+        processingState.checkpoint.remainingCustomerIds,
+        token,
+        [...existingProfiles, ...processingState.checkpoint.collectedProfiles],
+        options
+      );
+      return results;
+    } catch (error) {
+      // If resume fails, restore paused state
+      setProcessingState(prev => ({
+        ...prev,
+        isProcessing: false,
+        isPaused: true
+      }));
+      throw error;
+    }
   }, [processingState.checkpoint, toast, processBulkCustomerIds]);
 
   /**
