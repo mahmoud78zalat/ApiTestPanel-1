@@ -612,7 +612,9 @@ export const useBulkProcessing = () => {
   const resumeProcessing = useCallback(async (
     token: string,
     existingProfiles: CustomerProfile[],
-    options: Partial<BulkProcessingOptions> = {}
+    options: Partial<BulkProcessingOptions & {
+      newItemsToProcess?: string[]; // Allow passing new items to process instead of checkpoint remaining
+    }> = {}
   ) => {
     if (!processingState.checkpoint) {
       toast({
@@ -644,8 +646,14 @@ export const useBulkProcessing = () => {
         processingTimes.current = [...preservedPerformance.processingTimes];
       }
       
+      // Use new items if provided, otherwise use checkpoint remaining items
+      const itemsToProcess = options.newItemsToProcess || checkpoint.remainingCustomerIds;
+      const totalCount = (preservedPerformance?.processedSoFar || 0) + itemsToProcess.length;
+      
+      console.log('[Resume Processing] Items to process:', itemsToProcess.length, 'Already processed:', preservedPerformance?.processedSoFar || 0, 'Total:', totalCount);
+      
       const results = await processBulkCustomerIds(
-        checkpoint.remainingCustomerIds,
+        itemsToProcess,
         token,
         [...existingProfiles, ...checkpoint.collectedProfiles],
         {
@@ -653,7 +661,8 @@ export const useBulkProcessing = () => {
           // Pass preserved performance state for resume
           preservedStartTime: preservedPerformance?.startTime,
           preservedProcessedCount: preservedPerformance?.processedSoFar || 0,
-          originalTotalCount: (preservedPerformance?.processedSoFar || 0) + checkpoint.remainingCustomerIds.length
+          // Keep original total count consistent
+          originalTotalCount: totalCount
         }
       );
       return results;
