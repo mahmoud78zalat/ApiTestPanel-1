@@ -370,7 +370,7 @@ export default function ApiTesterRefactored() {
         duplicatesFound: duplicateCount
       }, 'completed');
 
-      stopMonitoring();
+      // Don't stop monitoring - preserve accumulated performance metrics
 
       toast({
         title: "Bulk Processing Complete",
@@ -383,7 +383,7 @@ export default function ApiTesterRefactored() {
         partialResults: processingState.processedItems
       }, 'failed');
 
-      stopMonitoring();
+      // Don't stop monitoring - preserve accumulated performance metrics even on failure
       
       toast({
         title: "Bulk Processing Failed",
