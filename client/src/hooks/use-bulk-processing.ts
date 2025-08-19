@@ -646,11 +646,25 @@ export const useBulkProcessing = () => {
         processingTimes.current = [...preservedPerformance.processingTimes];
       }
       
-      // Use new items if provided, otherwise use checkpoint remaining items
+      // For resume: directly update the processing state to continue from checkpoint
       const itemsToProcess = options.newItemsToProcess || checkpoint.remainingCustomerIds;
-      const totalCount = (preservedPerformance?.processedSoFar || 0) + itemsToProcess.length;
+      const alreadyProcessed = preservedPerformance?.processedSoFar || 0;
+      const totalCount = alreadyProcessed + itemsToProcess.length;
       
-      console.log('[Resume Processing] Items to process:', itemsToProcess.length, 'Already processed:', preservedPerformance?.processedSoFar || 0, 'Total:', totalCount);
+      console.log('[Resume Processing] Continuing from checkpoint - Items remaining:', itemsToProcess.length, 'Already processed:', alreadyProcessed, 'Total:', totalCount);
+      
+      // Set the processing state to reflect we're resuming from checkpoint
+      setProcessingState(prev => ({
+        ...prev,
+        isProcessing: true,
+        isPaused: false,
+        totalItems: totalCount,
+        processedItems: alreadyProcessed, // Start from where we left off
+        successfulItems: alreadyProcessed,
+        currentBatch: Math.ceil(alreadyProcessed / 6), // Continue batch count
+        totalBatches: Math.ceil(totalCount / 6),
+        checkpoint: null // Clear checkpoint since we're resuming
+      }));
       
       const results = await processBulkCustomerIds(
         itemsToProcess,
@@ -660,7 +674,7 @@ export const useBulkProcessing = () => {
           ...options,
           // Pass preserved performance state for resume
           preservedStartTime: preservedPerformance?.startTime,
-          preservedProcessedCount: preservedPerformance?.processedSoFar || 0,
+          preservedProcessedCount: alreadyProcessed,
           // Keep original total count consistent
           originalTotalCount: totalCount
         }
