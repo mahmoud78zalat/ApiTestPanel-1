@@ -44,26 +44,35 @@ export const usePerformanceMonitoring = () => {
   /**
    * Start monitoring performance
    */
-  const startMonitoring = useCallback((totalRequests: number) => {
-    console.log('[Performance Monitor] Starting with total requests:', totalRequests);
+  const startMonitoring = useCallback((totalRequests: number, preservedState?: {
+    startTime?: number;
+    completedRequests?: number;
+    successfulRequests?: number;
+    processingTimes?: number[];
+  }) => {
+    console.log('[Performance Monitor] Starting with total requests:', totalRequests, 'preserved:', preservedState);
     setIsMonitoring(true);
     lastUpdateTime.current = 0; // Reset throttle timer
+    
+    // Use preserved state if resuming from checkpoint, otherwise start fresh
     const initialMetrics = {
       totalRequests: Math.max(totalRequests, 1), // Ensure never 0
-      completedRequests: 0,
-      successfulRequests: 0,
+      completedRequests: preservedState?.completedRequests || 0,
+      successfulRequests: preservedState?.successfulRequests || 0,
       failedRequests: 0,
       averageResponseTime: 0,
       totalDataTransferred: 0,
       cacheHitRate: 0,
-      startTime: Date.now(),
+      startTime: preservedState?.startTime || Date.now(), // Use preserved start time for accurate session tracking
       duplicateProfiles: 0,
       profilesPerSecond: 0,
       activeConnections: 0
     };
     console.log('[Performance Monitor] Initial metrics:', initialMetrics);
     setMetrics(initialMetrics);
-    responseTimes.current = [];
+    
+    // Restore processing times for accurate averages
+    responseTimes.current = preservedState?.processingTimes || [];
     cacheStats.current = { hits: 0, misses: 0 };
   }, []);
 

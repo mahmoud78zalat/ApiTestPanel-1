@@ -162,9 +162,22 @@ export default function ApiTesterRefactored() {
     }
     
     if (bulkMode && isPaused && hasCheckpoint) {
-      // Resume from checkpoint
+      // Resume from checkpoint with preserved performance state
       setShowDebugPanel(true);
-      // Don't restart monitoring - continue with existing accumulated metrics
+      const checkpoint = processingState.checkpoint;
+      const preservedPerformance = checkpoint?.performanceState;
+      
+      // Restart monitoring with preserved checkpoint state for continuity
+      if (preservedPerformance) {
+        startMonitoring(checkpoint?.remainingCustomerIds.length || 0, {
+          startTime: preservedPerformance.startTime,
+          completedRequests: preservedPerformance.processedSoFar,
+          successfulRequests: preservedPerformance.processedSoFar,
+          processingTimes: preservedPerformance.processingTimes
+        });
+      } else {
+        startMonitoring(checkpoint?.remainingCustomerIds.length || 0);
+      }
       
       resumeProcessing(token, collectedProfiles, {
         batchSize: 6,
