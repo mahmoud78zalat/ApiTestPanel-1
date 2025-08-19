@@ -334,12 +334,40 @@ export default function ApiTesterRefactored() {
       return;
     }
 
+    // Filter out already processed customer IDs to avoid redundant API calls
+    const existingCustomerIds = new Set(collectedProfiles.map(p => p.customerId));
+    const newCustomerIds = customerIds.filter(id => !existingCustomerIds.has(id));
+    const skippedCount = customerIds.length - newCustomerIds.length;
+
+    if (skippedCount > 0) {
+      addDebugLog('info', `🔍 Duplicate Detection on Import`, {
+        totalImported: customerIds.length,
+        alreadyProcessed: skippedCount,
+        newToProcess: newCustomerIds.length,
+        duplicates: Array.from(existingCustomerIds).filter(id => customerIds.includes(id))
+      });
+
+      toast({
+        title: "Import Analysis",
+        description: `${newCustomerIds.length} new IDs to process, ${skippedCount} already exist`,
+      });
+    }
+
+    if (newCustomerIds.length === 0) {
+      toast({
+        title: "No New Customer IDs",
+        description: "All imported customer IDs have already been processed",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setShowDebugPanel(true);
-    startMonitoring(customerIds.length);
+    startMonitoring(newCustomerIds.length);
     
-    // Initialize performance monitoring with correct total count
+    // Initialize performance monitoring with correct count (only new IDs)
     updateMetrics({
-      totalItems: customerIds.length,
+      totalItems: newCustomerIds.length,
       processedItems: 0,
       successfulItems: 0,
       failedItems: 0,
@@ -348,14 +376,16 @@ export default function ApiTesterRefactored() {
     });
     
     logProcessStep(1, "Bulk Processing Initialization", {
-      totalCustomers: customerIds.length,
+      totalCustomers: newCustomerIds.length,
+      originalImported: customerIds.length,
+      skippedDuplicates: skippedCount,
       batchingEnabled: true,
       concurrentRequests: 12
     }, 'started');
 
     try {
       const results = await processBulkCustomerIds(
-        customerIds,
+        newCustomerIds,
         token,
         collectedProfiles,
         {
@@ -400,8 +430,10 @@ export default function ApiTesterRefactored() {
         }
       );
 
-      logProcessStep(customerIds.length, "Bulk Processing Completed", {
-        totalProcessed: customerIds.length,
+      logProcessStep(newCustomerIds.length, "Bulk Processing Completed", {
+        totalImported: customerIds.length,
+        newCustomersProcessed: newCustomerIds.length,
+        skippedDuplicates: skippedCount,
         successful: results.length,
         profilesCollected: collectedProfiles.length + results.length,
         duplicatesFound: duplicateCount
@@ -409,9 +441,13 @@ export default function ApiTesterRefactored() {
 
       // Don't stop monitoring - preserve accumulated performance metrics
 
+      const description = skippedCount > 0 
+        ? `Processed ${results.length} new profiles, skipped ${skippedCount} duplicates`
+        : `Successfully processed ${results.length} customer profiles`;
+
       toast({
-        title: "Bulk Processing Complete",
-        description: `Successfully processed ${results.length} customer profiles`,
+        title: "Import Processing Complete",
+        description,
       });
 
     } catch (error) {
