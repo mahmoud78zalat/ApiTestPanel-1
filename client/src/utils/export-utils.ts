@@ -102,20 +102,28 @@ const extractPaymentMethod = (order: any): string => {
  * Helper function to extract address line from address object
  */
 const extractAddressLine = (addr: any): string => {
-  return addr.addressLine1 || 
-         addr.address || 
-         addr.fullAddress || 
-         addr.street ||
-         addr.streetAddress ||
-         'No address';
+  if (!addr) return 'No address data';
+  
+  const addressLine = addr.addressLine1 || 
+                     addr.address || 
+                     addr.fullAddress || 
+                     addr.street ||
+                     addr.streetAddress ||
+                     addr.addressLine ||
+                     '';
+  
+  return addressLine || 'No address specified';
 };
 
 /**
  * Helper function to extract city from address object
  */
 const extractCity = (addr: any): string => {
+  if (!addr) return 'Unknown';
+  
   return addr.city || 
          addr.cityName || 
+         addr.area ||
          'Unknown';
 };
 
@@ -123,9 +131,11 @@ const extractCity = (addr: any): string => {
  * Helper function to extract country from address object
  */
 const extractCountry = (addr: any): string => {
+  if (!addr) return 'Unknown';
+  
   return addr.country || 
          addr.countryName || 
-         'Unknown';
+         'United Arab Emirates'; // Default to UAE as fallback
 };
 
 /**
@@ -413,25 +423,39 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         
         if (profile.addresses && profile.addresses.length > 0) {
           content += `\nADDRESSES (${profile.addresses.length}):\n`;
-          profile.addresses.forEach((addr, idx) => {
-            // Handle cases where addr might be null or undefined
-            if (!addr) {
-              content += `  ${idx + 1}. [Empty address slot]\n`;
-              content += `     City: Unknown, Country: Unknown\n\n`;
-              return;
+          for (let idx = 0; idx < profile.addresses.length; idx++) {
+            const addr = profile.addresses[idx];
+            
+            // Always show address number, even if address data is missing
+            content += `  ${idx + 1}. `;
+            
+            if (!addr || (typeof addr === 'object' && Object.keys(addr).length === 0)) {
+              content += `[No address data]\n`;
+              content += `     City: Not specified, Country: Not specified\n\n`;
+              continue;
             }
             
             const addressLine = extractAddressLine(addr);
             const city = extractCity(addr);
             const country = extractCountry(addr);
             
-            content += `  ${idx + 1}. ${addressLine}\n`;
+            content += `${addressLine}\n`;
             content += `     City: ${city}, Country: ${country}\n`;
-            if (addr.area) content += `     Area: ${addr.area}\n`;
-            if (addr.zipcode || addr.zipCode) content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
-            // Add empty line between addresses for better readability
+            
+            // Add additional fields if they exist
+            if (addr.area && addr.area.trim()) {
+              content += `     Area: ${addr.area}\n`;
+            }
+            if (addr.zipcode || addr.zipCode) {
+              content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
+            }
+            if (addr.state && addr.state.trim()) {
+              content += `     State: ${addr.state}\n`;
+            }
+            
+            // Add spacing between addresses
             content += `\n`;
-          });
+          }
         } else {
           content += `\nADDRESSES: None saved\n`;
         }
@@ -491,25 +515,39 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         
         if (profile.addresses && profile.addresses.length > 0) {
           content += `\nADDRESSES (${profile.addresses.length}):\n`;
-          profile.addresses.forEach((addr, idx) => {
-            // Handle cases where addr might be null or undefined
-            if (!addr) {
-              content += `  ${idx + 1}. [Empty address slot]\n`;
-              content += `     City: Unknown, Country: Unknown\n\n`;
-              return;
+          for (let idx = 0; idx < profile.addresses.length; idx++) {
+            const addr = profile.addresses[idx];
+            
+            // Always show address number, even if address data is missing
+            content += `  ${idx + 1}. `;
+            
+            if (!addr || (typeof addr === 'object' && Object.keys(addr).length === 0)) {
+              content += `[No address data]\n`;
+              content += `     City: Not specified, Country: Not specified\n\n`;
+              continue;
             }
             
             const addressLine = extractAddressLine(addr);
             const city = extractCity(addr);
             const country = extractCountry(addr);
             
-            content += `  ${idx + 1}. ${addressLine}\n`;
+            content += `${addressLine}\n`;
             content += `     City: ${city}, Country: ${country}\n`;
-            if (addr.area) content += `     Area: ${addr.area}\n`;
-            if (addr.zipcode || addr.zipCode) content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
-            // Add empty line between addresses for better readability
+            
+            // Add additional fields if they exist
+            if (addr.area && addr.area.trim()) {
+              content += `     Area: ${addr.area}\n`;
+            }
+            if (addr.zipcode || addr.zipCode) {
+              content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
+            }
+            if (addr.state && addr.state.trim()) {
+              content += `     State: ${addr.state}\n`;
+            }
+            
+            // Add spacing between addresses
             content += `\n`;
-          });
+          }
         } else {
           content += `\nADDRESSES: None saved\n`;
         }
