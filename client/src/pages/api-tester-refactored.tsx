@@ -196,17 +196,19 @@ export default function ApiTesterRefactored() {
         startMonitoring(totalRequests);
       }
       
-      // If new items were added during pause, use them; otherwise use checkpoint remaining
-      const checkpointRemaining = checkpoint?.remainingCustomerIds || [];
-      const shouldUseNewItems = currentValues.length > checkpointRemaining.length;
+      // CRITICAL: Only process items that haven't been processed yet
+      const processedIds = new Set(checkpoint?.processedCustomerIds || []);
+      const remainingFromInput = currentValues.filter(id => !processedIds.has(id));
+      
+      console.log('[Resume Fix] Processed IDs:', processedIds.size, 'Current input:', currentValues.length, 'Remaining to process:', remainingFromInput.length);
       
       resumeProcessing(token, collectedProfiles, {
         batchSize: 6,
         maxConcurrent: 6,
         retryAttempts: 3,
         delayBetweenBatches: 200,
-        // Pass new items if they were added during pause
-        newItemsToProcess: shouldUseNewItems ? currentValues : undefined,
+        // ONLY process items that haven't been processed
+        newItemsToProcess: remainingFromInput,
         onProgress: (state) => {
           updateMetrics({
             totalItems: state.totalItems,
