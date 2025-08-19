@@ -65,8 +65,8 @@ export const useBulkProcessing = () => {
 
   const abortController = useRef<AbortController | null>(null);
   const processingTimes = useRef<number[]>([]);
-  const [shouldStop, setShouldStop] = useState(false);
-  const [shouldPause, setShouldPause] = useState(false);
+  const shouldStop = useRef(false);
+  const shouldPause = useRef(false);
 
   /**
    * Process multiple customer IDs in optimized batches
@@ -92,9 +92,9 @@ export const useBulkProcessing = () => {
     const startTime = Date.now();
     const totalBatches = Math.ceil(customerIds.length / config.batchSize);
     
-    // Reset ALL state and create new abort controller for this processing session
-    setShouldStop(false);
-    setShouldPause(false);
+    // Reset ALL flags and create new abort controller for this processing session
+    shouldStop.current = false;
+    shouldPause.current = false;
     processingTimes.current = [];
     abortController.current = new AbortController();
 
@@ -134,7 +134,7 @@ export const useBulkProcessing = () => {
       // Process in batches for optimal performance
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
         // Check for pause request at the start of each batch (but skip on resume)
-        if ((shouldPause || abortController.current?.signal.aborted) && batchIndex > 0) {
+        if ((shouldPause.current || abortController.current?.signal.aborted) && batchIndex > 0) {
           const remainingBatchIndex = batchIndex;
           const remainingIds = customerIds.slice(remainingBatchIndex * config.batchSize);
           
@@ -157,14 +157,14 @@ export const useBulkProcessing = () => {
             remainingItems: remainingIds.length,
             batchIndex,
             checkpointCreated: true,
-            reason: shouldPause ? 'User pause requested' : 'Abort signal triggered'
+            reason: shouldPause.current ? 'User pause requested' : 'Abort signal triggered'
           });
           
           return results; // EXIT with current results
         }
         
         // Check if processing should be stopped (but not if we just started)
-        if ((abortController.current?.signal.aborted || shouldStop) && batchIndex > 0) {
+        if ((abortController.current?.signal.aborted || shouldStop.current) && batchIndex > 0) {
           throw new Error('Processing stopped by user');
         }
 
@@ -192,7 +192,7 @@ export const useBulkProcessing = () => {
           );
           
           // Check for pause/stop after batch completes (but not on first batch of resume)
-          if ((shouldPause || abortController.current?.signal.aborted) && batchIndex > 0) {
+          if ((shouldPause.current || abortController.current?.signal.aborted) && batchIndex > 0) {
             config.onDebugLog('info', '⏸️ Batch completed but pausing requested', {
               batchJustCompleted: batchIndex + 1,
               nextBatch: batchIndex + 2,
@@ -556,7 +556,7 @@ export const useBulkProcessing = () => {
    * Smoothly pause ongoing bulk processing and create checkpoint
    */
   const pauseProcessing = useCallback(() => {
-    setShouldPause(true);
+    shouldPause.current = true;
     
     setProcessingState(prev => ({
       ...prev,
@@ -594,9 +594,9 @@ export const useBulkProcessing = () => {
       isPaused: false
     }));
 
-    // Reset all stop and pause flags before resuming
-    setShouldPause(false);
-    setShouldStop(false);
+    // Reset all stop and pause flags before resuming (synchronously)
+    shouldPause.current = false;
+    shouldStop.current = false;
     
     try {
       // Resume from checkpoint
@@ -622,8 +622,8 @@ export const useBulkProcessing = () => {
    * Completely reset processing state and clear checkpoints
    */
   const resetProcessing = useCallback(() => {
-    setShouldStop(false);
-    setShouldPause(false);
+    shouldStop.current = false;
+    shouldPause.current = false;
     
     if (abortController.current) {
       abortController.current.abort();
@@ -678,7 +678,7 @@ export const useBulkProcessing = () => {
    * Creates a checkpoint so processing can be resumed later
    */
   const stopProcessing = useCallback(() => {
-    setShouldStop(true);
+    shouldStop.current = true;
     if (abortController.current) {
       abortController.current.abort();
     }
