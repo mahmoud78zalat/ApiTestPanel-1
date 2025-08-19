@@ -15,6 +15,7 @@ import type { CustomerProfile } from "@shared/schema";
 
 interface BulkProcessingState {
   isProcessing: boolean;
+  isPaused: boolean;
   totalItems: number;
   processedItems: number;
   successfulItems: number;
@@ -26,6 +27,11 @@ interface BulkProcessingState {
   estimatedTimeRemaining: number;
   averageProcessingTime: number;
   errors: Array<{ customerId: string; error: string; attempt: number }>;
+  checkpoint: {
+    processedCustomerIds: string[];
+    remainingCustomerIds: string[];
+    collectedProfiles: CustomerProfile[];
+  } | null;
 }
 
 interface BulkProcessingOptions {
@@ -42,6 +48,7 @@ export const useBulkProcessing = () => {
   const { toast } = useToast();
   const [processingState, setProcessingState] = useState<BulkProcessingState>({
     isProcessing: false,
+    isPaused: false,
     totalItems: 0,
     processedItems: 0,
     successfulItems: 0,
@@ -52,12 +59,14 @@ export const useBulkProcessing = () => {
     startTime: 0,
     estimatedTimeRemaining: 0,
     averageProcessingTime: 0,
-    errors: []
+    errors: [],
+    checkpoint: null
   });
 
   const abortController = useRef<AbortController | null>(null);
   const processingTimes = useRef<number[]>([]);
   const [shouldStop, setShouldStop] = useState(false);
+  const [shouldPause, setShouldPause] = useState(false);
 
   /**
    * Process multiple customer IDs in optimized batches
@@ -90,6 +99,7 @@ export const useBulkProcessing = () => {
 
     const initialState: BulkProcessingState = {
       isProcessing: true,
+      isPaused: false,
       totalItems: customerIds.length,
       processedItems: 0,
       successfulItems: 0,
@@ -100,7 +110,8 @@ export const useBulkProcessing = () => {
       startTime,
       estimatedTimeRemaining: 0,
       averageProcessingTime: 0,
-      errors: []
+      errors: [],
+      checkpoint: null
     };
 
     setProcessingState(initialState);
@@ -121,6 +132,36 @@ export const useBulkProcessing = () => {
     try {
       // Process in batches for optimal performance
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        // CRITICAL: Check for pause request IMMEDIATELY - this creates a checkpoint and exits
+        if (shouldPause.current || abortController.current?.signal.aborted) {
+          const remainingBatchIndex = batchIndex;
+          const remainingIds = customerIds.slice(remainingBatchIndex * config.batchSize);
+          
+          // Create checkpoint for smooth resume
+          const checkpoint = {
+            processedCustomerIds: customerIds.slice(0, remainingBatchIndex * config.batchSize),
+            remainingCustomerIds: remainingIds,
+            collectedProfiles: results
+          };
+          
+          setProcessingState(prev => ({
+            ...prev,
+            isProcessing: false,
+            isPaused: true,
+            checkpoint
+          }));
+          
+          config.onDebugLog('info', '⏸️ Processing Paused IMMEDIATELY at Checkpoint', {
+            processedSoFar: results.length,
+            remainingItems: remainingIds.length,
+            batchIndex,
+            checkpointCreated: true,
+            reason: shouldPause.current ? 'User pause requested' : 'Abort signal triggered'
+          });
+          
+          return results; // EXIT IMMEDIATELY with current results
+        }
+        
         if (abortController.current?.signal.aborted || shouldStop) {
           throw new Error('Processing stopped by user');
         }
@@ -137,24 +178,84 @@ export const useBulkProcessing = () => {
 
         const batchStartTime = Date.now();
 
-        // Process batch concurrently (5-10 requests at once)
-        const batchResults = await processBatchConcurrently(
-          batchIds,
-          token,
-          existingCustomerIds,
-          config,
-          abortController.current.signal
-        );
+        // Process batch concurrently (5-10 requests at once) with abort monitoring
+        try {
+          const batchResults = await processBatchConcurrently(
+            batchIds,
+            token,
+            existingCustomerIds,
+            config,
+            abortController.current.signal
+          );
+          
+          // Check for abort/pause IMMEDIATELY after batch completes
+          if (shouldPause.current || abortController.current?.signal.aborted) {
+            config.onDebugLog('info', '⏸️ Batch completed but pausing requested', {
+              batchJustCompleted: batchIndex + 1,
+              nextBatch: batchIndex + 2,
+              totalBatches
+            });
+            
+            // Update results with this batch and create checkpoint
+            results.push(...batchResults.profiles);
+            
+            const remainingIds = customerIds.slice((batchIndex + 1) * config.batchSize);
+            const checkpoint = {
+              processedCustomerIds: customerIds.slice(0, (batchIndex + 1) * config.batchSize),
+              remainingCustomerIds: remainingIds,
+              collectedProfiles: results
+            };
+            
+            setProcessingState(prev => ({
+              ...prev,
+              isProcessing: false,
+              isPaused: true,
+              processedItems: results.length,
+              checkpoint
+            }));
+            
+            return results; // EXIT with updated results
+          }
+          
+          // Continue normal processing
+          const batchProcessingTime = Date.now() - batchStartTime;
+          processingTimes.current.push(batchProcessingTime);
 
-        const batchProcessingTime = Date.now() - batchStartTime;
-        processingTimes.current.push(batchProcessingTime);
-
-        // Update results and state
-        results.push(...batchResults.profiles);
+          // Update results and state
+          results.push(...batchResults.profiles);
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('aborted')) {
+            config.onDebugLog('info', '⏸️ Batch processing aborted - creating checkpoint', {
+              batchIndex: batchIndex + 1,
+              currentResults: results.length
+            });
+            
+            // Create checkpoint even on abort
+            const remainingIds = customerIds.slice(batchIndex * config.batchSize);
+            const checkpoint = {
+              processedCustomerIds: customerIds.slice(0, batchIndex * config.batchSize),
+              remainingCustomerIds: remainingIds,
+              collectedProfiles: results
+            };
+            
+            setProcessingState(prev => ({
+              ...prev,
+              isProcessing: false,
+              isPaused: true,
+              processedItems: results.length,
+              checkpoint
+            }));
+            
+            return results; // Return current results on abort
+          }
+          
+          throw error; // Re-throw non-abort errors
+        }
 
         const currentState: BulkProcessingState = {
           ...processingState,
-          isProcessing: true, // Ensure processing state is maintained
+          isProcessing: true,
+          isPaused: false,
           processedItems: batchEnd,
           successfulItems: results.length,
           failedItems: batchResults.failures.length,
@@ -162,7 +263,8 @@ export const useBulkProcessing = () => {
           currentBatch: batchIndex + 1,
           averageProcessingTime: calculateAverageProcessingTime(),
           estimatedTimeRemaining: calculateEstimatedTimeRemaining(batchIndex + 1, totalBatches),
-          errors: [...processingState.errors, ...batchResults.failures]
+          errors: [...processingState.errors, ...batchResults.failures],
+          checkpoint: null // Clear any previous checkpoint since we're actively processing
         };
 
         setProcessingState(currentState);
@@ -287,6 +389,11 @@ export const useBulkProcessing = () => {
 
           const profile = await BrandsForLessService.fetchCustomerProfile(customerId, token);
           
+          // Critical: Check abort signal immediately after API call completes
+          if (abortSignal.aborted) {
+            throw new Error('Processing aborted by user');
+          }
+          
           if (profile) {
             profiles.push(profile);
             existingCustomerIds.add(customerId); // Prevent duplicates within same batch
@@ -309,6 +416,11 @@ export const useBulkProcessing = () => {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           
+          // If it's an abort error, don't retry - just throw it up immediately
+          if (errorMessage.includes('aborted') || abortSignal.aborted) {
+            throw new Error('Processing aborted by user');
+          }
+          
           config.onDebugLog('warning', `⚠️ Attempt ${attempt} Failed: ${customerId}`, {
             error: errorMessage,
             willRetry: attempt < config.retryAttempts
@@ -326,27 +438,66 @@ export const useBulkProcessing = () => {
               totalAttempts: attempt
             });
           } else {
+            // Check abort before retry delay
+            if (abortSignal.aborted) {
+              throw new Error('Processing aborted by user');
+            }
+            
             // Exponential backoff for retries
             const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
             await new Promise(resolve => setTimeout(resolve, delay));
+            
+            // Check abort after delay
+            if (abortSignal.aborted) {
+              throw new Error('Processing aborted by user');
+            }
           }
         }
       }
       return null;
     });
 
-    // Wait for all concurrent requests to complete and filter out null results
-    const results = await Promise.allSettled(promises);
-    
-    // Filter out nulls and failed promises - we only want actual profiles
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && result.value === null) {
-        // This was a skipped customer (no valid data), don't count as failure
-        config.onDebugLog('info', `⏭️ Customer skipped (no valid data): ${batchIds[index]}`);
+    try {
+      // Wait for all concurrent requests to complete but check abort signal frequently
+      const results = await Promise.allSettled(promises);
+      
+      // If aborted during processing, throw immediately
+      if (abortSignal.aborted) {
+        throw new Error('Processing aborted by user');
       }
-    });
+      
+      // Filter out nulls and failed promises - we only want actual profiles
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value === null) {
+          // This was a skipped customer (no valid data), don't count as failure
+          config.onDebugLog('info', `⏭️ Customer skipped (no valid data): ${batchIds[index]}`);
+        } else if (result.status === 'rejected') {
+          const errorMessage = result.reason instanceof Error ? result.reason.message : 'Unknown error';
+          // Check if it's an abort error - if so, propagate it up
+          if (errorMessage.includes('aborted')) {
+            throw new Error('Processing aborted by user');
+          }
+        }
+      });
 
-    return { profiles, failures, duplicates };
+      return { profiles, failures, duplicates };
+    } catch (error) {
+      // If it's an abort error, make sure to clean up and throw it properly
+      if (error instanceof Error && error.message.includes('aborted')) {
+        config.onDebugLog('info', '⏸️ Batch Processing Aborted', {
+          batchSize: batchIds.length,
+          reason: 'User requested pause'
+        });
+        throw error;
+      }
+      
+      // For other errors, log and re-throw
+      config.onDebugLog('error', '❌ Batch Processing Failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        batchSize: batchIds.length
+      });
+      throw error;
+    }
   };
 
   /**
@@ -371,21 +522,66 @@ export const useBulkProcessing = () => {
   };
 
   /**
-   * Cancel ongoing bulk processing with complete state reset
+   * Smoothly pause ongoing bulk processing and create checkpoint
    */
-  const cancelProcessing = useCallback(() => {
-    // Force stop the processing
-    setShouldStop(true);
+  const pauseProcessing = useCallback(() => {
+    setShouldPause(true);
     
-    // Abort the current network requests
+    setProcessingState(prev => ({
+      ...prev,
+      isProcessing: false,
+      isPaused: true
+    }));
+
+    toast({
+      title: "Processing Paused",
+      description: "Processing has been paused. You can resume from this point anytime.",
+    });
+  }, [toast]);
+
+  /**
+   * Resume processing from the last checkpoint
+   */
+  const resumeProcessing = useCallback(async (
+    token: string,
+    existingProfiles: CustomerProfile[],
+    options: Partial<BulkProcessingOptions> = {}
+  ) => {
+    if (!processingState.checkpoint) {
+      toast({
+        title: "No Checkpoint Found",
+        description: "Cannot resume - no checkpoint data available",
+        variant: "destructive",
+      });
+      return [];
+    }
+
+    setShouldPause(false);
+    
+    // Resume from checkpoint
+    return processBulkCustomerIds(
+      processingState.checkpoint.remainingCustomerIds,
+      token,
+      [...existingProfiles, ...processingState.checkpoint.collectedProfiles],
+      options
+    );
+  }, [processingState.checkpoint, toast]);
+
+  /**
+   * Completely reset processing state and clear checkpoints
+   */
+  const resetProcessing = useCallback(() => {
+    setShouldStop(false);
+    setShouldPause(false);
+    
     if (abortController.current) {
       abortController.current.abort();
       abortController.current = null;
     }
     
-    // Reset all processing state completely
     setProcessingState({
       isProcessing: false,
+      isPaused: false,
       totalItems: 0,
       processedItems: 0,
       successfulItems: 0,
@@ -396,23 +592,12 @@ export const useBulkProcessing = () => {
       startTime: 0,
       estimatedTimeRemaining: 0,
       averageProcessingTime: 0,
-      errors: []
+      errors: [],
+      checkpoint: null
     });
     
-    // Reset processing times
     processingTimes.current = [];
-    
-    // Reset stop flag after a brief delay to ensure everything is cleaned up
-    setTimeout(() => {
-      setShouldStop(false);
-    }, 100);
-
-    toast({
-      title: "Processing Cancelled",
-      description: "Bulk processing has been stopped",
-      variant: "destructive",
-    });
-  }, [toast]);
+  }, []);
 
   /**
    * Reset processing state
@@ -460,10 +645,13 @@ export const useBulkProcessing = () => {
   return {
     processingState,
     processBulkCustomerIds,
-    cancelProcessing,
-    stopProcessing,
-    resetProcessingState,
+    pauseProcessing,
+    resumeProcessing,
+    resetProcessing,
     isProcessing: processingState.isProcessing,
-    shouldStop
+    isPaused: processingState.isPaused,
+    hasCheckpoint: !!processingState.checkpoint,
+    totalItems: processingState.totalItems,
+    processedItems: processingState.processedItems
   };
 };

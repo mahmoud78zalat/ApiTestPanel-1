@@ -21,6 +21,7 @@ import { ApiResponseDisplay } from "@/components/api-response-display";
 import { BulkResultsPanel } from "@/components/bulk-results-panel";
 import { DebugPanel } from "@/components/debug-panel";
 import { PerformanceMonitor } from "@/components/performance-monitor";
+import { Button } from "@/components/ui/button";
 
 // Features
 import { ProfileManagement } from "@/features/profile-management";
@@ -75,11 +76,12 @@ export default function ApiTesterRefactored() {
   const {
     processingState,
     processBulkCustomerIds,
-    cancelProcessing,
-    stopProcessing,
-    resetProcessingState,
+    pauseProcessing,
+    resumeProcessing,
+    resetProcessing,
     isProcessing,
-    shouldStop
+    isPaused,
+    hasCheckpoint
   } = useBulkProcessing();
 
   // Profile collection with duplicate tracking
@@ -153,8 +155,41 @@ export default function ApiTesterRefactored() {
   const handleSubmit = async () => {
     // Handle stop request for bulk processing
     if (bulkMode && isProcessing) {
-      stopProcessing();
+      pauseProcessing();
       stopMonitoring();
+      return;
+    }
+    
+    if (bulkMode && isPaused && hasCheckpoint) {
+      // Resume from checkpoint
+      setShowDebugPanel(true);
+      startMonitoring(processingState.checkpoint?.remainingCustomerIds.length || 0);
+      
+      resumeProcessing(token, collectedProfiles, {
+        batchSize: 6,
+        maxConcurrent: 6,
+        retryAttempts: 3,
+        delayBetweenBatches: 200,
+        onProgress: (state) => {
+          updateMetrics({
+            totalItems: state.totalItems,
+            processedItems: state.processedItems,
+            successfulItems: state.successfulItems,
+            failedItems: state.failedItems,
+            averageProcessingTime: state.averageProcessingTime || 0,
+            activeConnections: Math.min(state.currentBatch || 0, 6)
+          });
+        },
+        onProfileProcessed: (profile, isDuplicate) => {
+          addProfile(profile);
+          if (isDuplicate) {
+            logDuplicateDetection(profile.customerId, profile.fullName, 'skipped');
+          }
+        },
+        onDebugLog: (level, message, data) => {
+          addDebugLog(level as "error" | "info" | "request" | "response", message, data);
+        }
+      });
       return;
     }
     
@@ -316,15 +351,13 @@ export default function ApiTesterRefactored() {
             );
           },
           onProfileProcessed: (profile, isDuplicate) => {
+            addProfile(profile);
             if (isDuplicate) {
-              logDuplicateDetection(profile.customerId, 'detected');
+              logDuplicateDetection(profile.customerId, profile.fullName, 'detected');
             }
-            addProfile(profile, (customerId) => {
-              logDuplicateDetection(customerId, 'updated');
-            });
           },
           onDebugLog: (level, message, data) => {
-            addDebugLog(level as any, message, data);
+            addDebugLog(level as "error" | "info" | "request" | "response", message, data);
           }
         }
       );
@@ -381,6 +414,8 @@ export default function ApiTesterRefactored() {
         bulkInput={bulkInput}
         isLoading={isLoading || isProfileLoading}
         isProcessing={isProcessing}
+        isPaused={isPaused}
+        hasCheckpoint={hasCheckpoint}
         onUrlChange={setUrl}
         onMethodChange={setMethod}
         onTokenChange={setToken}
@@ -400,17 +435,44 @@ export default function ApiTesterRefactored() {
         isLoading={isLoading}
       />
 
-      {/* Bulk Results Display - shows when bulk processing completes */}
-      {processingState.isProcessing && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-          <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-            Bulk Processing in Progress...
+      {/* Bulk Results Display - shows processing status and checkpoints */}
+      {(processingState.isProcessing || processingState.isPaused) && (
+        <div className={`p-4 rounded-lg border ${
+          processingState.isPaused 
+            ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+            : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+        }`}>
+          <h3 className={`font-semibold mb-2 ${
+            processingState.isPaused 
+              ? 'text-yellow-900 dark:text-yellow-100'
+              : 'text-blue-900 dark:text-blue-100'
+          }`}>
+            {processingState.isPaused ? '⏸️ Processing Paused' : 'Bulk Processing in Progress...'}
           </h3>
-          <div className="text-sm text-blue-700 dark:text-blue-300">
-            <div>Processing {processingState.processedItems} of {processingState.totalItems}</div>
+          <div className={`text-sm ${
+            processingState.isPaused 
+              ? 'text-yellow-700 dark:text-yellow-300'
+              : 'text-blue-700 dark:text-blue-300'
+          }`}>
+            <div>Processed {processingState.processedItems} of {processingState.totalItems}</div>
             <div>Successful: {processingState.successfulItems}</div>
             <div>Failed: {processingState.failedItems}</div>
             <div>Duplicates: {processingState.duplicateItems}</div>
+            {processingState.isPaused && processingState.checkpoint && (
+              <div className="mt-2 space-y-2">
+                <div className="text-xs">
+                  ✅ Checkpoint saved - you can resume processing anytime
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={resetProcessing}
+                  className="text-xs"
+                >
+                  Reset & Clear Checkpoint
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

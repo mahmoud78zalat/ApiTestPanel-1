@@ -40,6 +40,10 @@ interface ApiRequestFormProps {
   isLoading?: boolean;
   /** Bulk processing state */
   isProcessing?: boolean;
+  /** Bulk processing paused state */
+  isPaused?: boolean;
+  /** Whether there's a checkpoint to resume from */
+  hasCheckpoint?: boolean;
   
   /** Event handlers */
   onUrlChange: (url: string) => void;
@@ -65,6 +69,8 @@ export function ApiRequestForm({
   bulkInput,
   isLoading = false,
   isProcessing = false,
+  isPaused = false,
+  hasCheckpoint = false,
   onUrlChange,
   onMethodChange,
   onTokenChange,
@@ -288,7 +294,12 @@ export function ApiRequestForm({
             {bulkMode && isProcessing ? (
               <>
                 <Square className="w-4 h-4 mr-2 animate-pulse text-white" />
-                Stop Processing
+                Pause Processing
+              </>
+            ) : bulkMode && isPaused && hasCheckpoint ? (
+              <>
+                <Play className="w-4 h-4 mr-2 text-green-500" />
+                Resume Processing
               </>
             ) : bulkMode ? (
               <>

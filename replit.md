@@ -12,11 +12,12 @@ A professional API testing and customer profile management platform for Brands f
 - Enhanced data processing and debugging mechanisms
 
 ## Recent Changes
+- **Checkpoint System Implementation (August 19, 2025)**: Complete redesign of bulk processing with smooth pause/resume functionality
+- **Button State Management**: Fixed laggy stop button issues with proper state transitions and immediate UI feedback
+- **Smart Checkpoint Creation**: Processing now creates checkpoints at exact pause points for seamless resume
+- **Enhanced Address Display**: Clean fallback addresses showing only "City, Country" format instead of store pickup details
 - **Performance Optimization (August 17, 2025)**: Removed extensive logging that was causing massive performance issues during bulk operations
 - **Bulk Request Optimization**: Reduced concurrent request limits and added throttling to prevent UI freezing during 700+ requests
-- **Performance Monitor Enhancement**: Implemented throttled updates and optimized rendering for high-volume operations
-- **Request Scheduler Improvements**: Reduced concurrent connections from 8 to 6 and requests per second from 5 to 3 for better stability
-- **Data Quality Improvement**: Skip customers with insufficient data instead of creating "Unknown Customer" fallback entries
 
 ## User Preferences
 - Performance is critical - avoid verbose logging during bulk operations
