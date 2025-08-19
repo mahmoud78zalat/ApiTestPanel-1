@@ -58,6 +58,47 @@ const extractCityFromAddress = (address: string): string => {
 };
 
 /**
+ * Helper function to normalize address for duplicate detection
+ */
+const normalizeAddress = (addr: any): string => {
+  if (!addr) return '';
+  
+  const address = (addr.address || addr.addressLine1 || addr.addressLine || addr.street || '').toLowerCase().trim();
+  const city = (addr.city || addr.cityName || addr.town || addr.locality || '').toLowerCase().trim();
+  const area = (addr.area || addr.region || addr.state || '').toLowerCase().trim();
+  
+  // Create normalized key for comparison
+  return `${address}|${city}|${area}`.replace(/\s+/g, ' ');
+};
+
+/**
+ * Helper function to remove duplicate addresses and count them
+ */
+const removeDuplicateAddresses = (addresses: any[]): { uniqueAddresses: any[], duplicateCount: number } => {
+  if (!addresses || addresses.length === 0) {
+    return { uniqueAddresses: [], duplicateCount: 0 };
+  }
+  
+  const seen = new Set<string>();
+  const uniqueAddresses: any[] = [];
+  let duplicateCount = 0;
+  
+  for (const addr of addresses) {
+    if (!addr) continue;
+    
+    const normalizedKey = normalizeAddress(addr);
+    if (normalizedKey && !seen.has(normalizedKey)) {
+      seen.add(normalizedKey);
+      uniqueAddresses.push(addr);
+    } else if (normalizedKey) {
+      duplicateCount++;
+    }
+  }
+  
+  return { uniqueAddresses, duplicateCount };
+};
+
+/**
  * Helper function to get fallback address from shipping data in orders (city and country only)
  */
 const getFallbackAddressFromOrders = (orders: any[]): { address: string; city: string; country: string; type: string } | null => {
@@ -426,15 +467,23 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
         content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
         
-        // GUARANTEED FIX: Display ALL addresses instead of just the first one
+        // GUARANTEED FIX: Display ALL addresses with duplicate detection and removal
         if (profile.addresses && profile.addresses.length > 0) {
-          content += `\nADDRESSES (${profile.addresses.length}):\n`;
+          const { uniqueAddresses, duplicateCount } = removeDuplicateAddresses(profile.addresses);
+          const totalOriginal = profile.addresses.length;
           
-          // Loop through ALL addresses in the array
-          for (let idx = 0; idx < profile.addresses.length; idx++) {
+          // Display header with duplicate info
+          if (duplicateCount > 0) {
+            content += `\nADDRESSES (${totalOriginal} addresses, ${duplicateCount} duplicates removed - ${uniqueAddresses.length} unique):\n`;
+          } else {
+            content += `\nADDRESSES (${uniqueAddresses.length}):\n`;
+          }
+          
+          // Loop through unique addresses only
+          for (let idx = 0; idx < uniqueAddresses.length; idx++) {
             content += `  ${idx + 1}. `;
             
-            const addr = profile.addresses[idx];
+            const addr = uniqueAddresses[idx];
             
             // Check if address is null/undefined/empty
             if (!addr || addr === null || addr === undefined) {
@@ -550,15 +599,23 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
         content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
         
-        // GUARANTEED FIX: Display ALL addresses instead of just the first one
+        // GUARANTEED FIX: Display ALL addresses with duplicate detection and removal
         if (profile.addresses && profile.addresses.length > 0) {
-          content += `\nADDRESSES (${profile.addresses.length}):\n`;
+          const { uniqueAddresses, duplicateCount } = removeDuplicateAddresses(profile.addresses);
+          const totalOriginal = profile.addresses.length;
           
-          // Loop through ALL addresses in the array
-          for (let idx = 0; idx < profile.addresses.length; idx++) {
+          // Display header with duplicate info
+          if (duplicateCount > 0) {
+            content += `\nADDRESSES (${totalOriginal} addresses, ${duplicateCount} duplicates removed - ${uniqueAddresses.length} unique):\n`;
+          } else {
+            content += `\nADDRESSES (${uniqueAddresses.length}):\n`;
+          }
+          
+          // Loop through unique addresses only
+          for (let idx = 0; idx < uniqueAddresses.length; idx++) {
             content += `  ${idx + 1}. `;
             
-            const addr = profile.addresses[idx];
+            const addr = uniqueAddresses[idx];
             
             // Check if address is null/undefined/empty
             if (!addr || addr === null || addr === undefined) {
