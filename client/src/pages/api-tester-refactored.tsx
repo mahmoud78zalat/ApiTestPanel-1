@@ -178,11 +178,8 @@ export default function ApiTesterRefactored() {
       
       const currentValues = parseBulkInput(bulkInput);
       
-      // For resume: use checkpoint's original total count (processed + remaining)
-      const checkpointTotal = (preservedPerformance?.processedSoFar || 0) + (checkpoint?.remainingCustomerIds.length || 0);
-      
-      // If new items were added, calculate new total
-      const totalRequests = Math.max(checkpointTotal, (preservedPerformance?.processedSoFar || 0) + currentValues.length);
+      // Total should always be the current bulk input length (all items user wants to process)
+      const totalRequests = currentValues.length;
       
       // Restart monitoring with preserved checkpoint state
       if (preservedPerformance) {
@@ -209,6 +206,8 @@ export default function ApiTesterRefactored() {
         delayBetweenBatches: 200,
         // ONLY process items that haven't been processed
         newItemsToProcess: remainingFromInput,
+        // Pass the correct total count (all current items)
+        originalTotalCount: totalRequests,
         onProgress: (state) => {
           updateMetrics({
             totalItems: state.totalItems,

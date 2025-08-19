@@ -649,7 +649,8 @@ export const useBulkProcessing = () => {
       // For resume: directly update the processing state to continue from checkpoint
       const itemsToProcess = options.newItemsToProcess || checkpoint.remainingCustomerIds;
       const alreadyProcessed = preservedPerformance?.processedSoFar || 0;
-      const totalCount = alreadyProcessed + itemsToProcess.length;
+      // Total should be preserved from the original user input, not reduced
+      const totalCount = options.originalTotalCount || (alreadyProcessed + itemsToProcess.length);
       
       console.log('[Resume Processing] Continuing from checkpoint - Items remaining:', itemsToProcess.length, 'Already processed:', alreadyProcessed, 'Total:', totalCount);
       
