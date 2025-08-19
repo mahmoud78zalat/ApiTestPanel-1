@@ -108,6 +108,29 @@ export const normalizeCountryName = (country: string): string => {
 };
 
 /**
+ * Extracts shipping address from orders when customer address is missing
+ * 
+ * @param orders - Array of order objects
+ * @returns Address string from shipping details
+ */
+export const getShippingAddressFromOrders = (orders: any[]): string => {
+  if (!orders?.length) return '';
+  
+  // Look for shipping address in latest orders
+  for (const order of orders.slice(0, 3)) { // Check first 3 orders
+    if (order?.shippingAddress) {
+      let address = order.shippingAddress;
+      if (order?.shippingState) {
+        address += `, ${order.shippingState}`;
+      }
+      return address;
+    }
+  }
+  
+  return '';
+};
+
+/**
  * Determines country based on currency from orders
  * 
  * @param orders - Array of order objects

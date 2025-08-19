@@ -188,10 +188,10 @@ export function PerformanceMonitor({
             </div>
             
             <div className="text-center">
-              <div className="text-lg font-semibold text-orange-600">
-                {formatTime(isActive ? elapsedTime : (metrics.endTime || Date.now()) - metrics.startTime)}
+              <div className="text-lg font-semibold text-purple-600">
+                {estimatedTimeRemaining > 0 ? formatTime(estimatedTimeRemaining) : '--'}
               </div>
-              <div className="text-xs text-gray-500">Elapsed Time</div>
+              <div className="text-xs text-gray-500">Remaining</div>
             </div>
           </div>
         </div>
@@ -245,12 +245,12 @@ export function PerformanceMonitor({
                   <span className="font-mono">{requestsPerSecond.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Cache Hit Rate:</span>
-                  <span className="font-mono">{metrics.cacheHitRate.toFixed(1)}%</span>
+                  <span>Average Response:</span>
+                  <span className="font-mono">{metrics.averageResponseTime.toFixed(0)}ms</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Data Transferred:</span>
-                  <span className="font-mono">{formatBytes(metrics.totalDataTransferred)}</span>
+                  <span>Elapsed Time:</span>
+                  <span className="font-mono">{formatTime(isActive ? elapsedTime : (metrics.endTime || Date.now()) - metrics.startTime)}</span>
                 </div>
                 {estimatedTimeRemaining > 0 && (
                   <div className="flex justify-between">
@@ -267,16 +267,16 @@ export function PerformanceMonitor({
             <h6 className="text-sm font-medium text-blue-900 mb-2">Performance Insights</h6>
             <div className="space-y-1 text-xs text-blue-800">
               {requestsPerSecond > 5 && (
-                <div>🚀 Excellent throughput - processing over 5 requests per second</div>
-              )}
-              {metrics.cacheHitRate > 30 && (
-                <div>💾 Good cache utilization - {metrics.cacheHitRate.toFixed(0)}% hit rate reducing API load</div>
+                <div>Excellent throughput - processing over 5 requests per second</div>
               )}
               {successRate > 95 && (
-                <div>✅ High reliability - {successRate.toFixed(1)}% success rate</div>
+                <div>High reliability - {successRate.toFixed(1)}% success rate</div>
               )}
               {metrics.averageResponseTime < 500 && (
-                <div>⚡ Fast responses - average {metrics.averageResponseTime.toFixed(0)}ms response time</div>
+                <div>Fast responses - average {metrics.averageResponseTime.toFixed(0)}ms response time</div>
+              )}
+              {estimatedTimeRemaining > 0 && estimatedTimeRemaining < 60000 && (
+                <div>Nearly complete - less than 1 minute remaining</div>
               )}
             </div>
           </div>

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { CustomerProfile } from "@shared/schema";
 import { formatDate } from "@/utils/date-utils";
-import { formatCurrency, getActualCurrency, getCountryFromCurrency, normalizeCountryName } from "@/utils/currency-utils";
+import { formatCurrency, getActualCurrency, getCountryFromCurrency, normalizeCountryName, getShippingAddressFromOrders } from "@/utils/currency-utils";
 
 interface ProfileManagementProps {
   /** Array of collected customer profiles */
@@ -241,11 +241,25 @@ function ProfileCard({ profile, onRemove }: ProfileCardProps) {
             <Badge variant="outline">
               {formatCurrency(profile.totalPurchasesAmount, currency)}
             </Badge>
-            {primaryAddress && (
-              <Badge variant="outline">
-                {primaryAddress.city}, {primaryAddress.country}
-              </Badge>
-            )}
+            {(() => {
+              if (primaryAddress) {
+                return (
+                  <Badge variant="outline">
+                    📍 {primaryAddress.city}, {primaryAddress.country}
+                  </Badge>
+                );
+              } else {
+                const shippingAddress = getShippingAddressFromOrders(profile.latestOrders || []);
+                if (shippingAddress) {
+                  return (
+                    <Badge variant="outline">
+                      📦 {shippingAddress}
+                    </Badge>
+                  );
+                }
+              }
+              return null;
+            })()}
             {profile.birthDate && (
               <Badge variant="outline">
                 Born: {formatDate(profile.birthDate)}
