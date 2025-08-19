@@ -163,7 +163,8 @@ export const useBulkProcessing = () => {
           return results; // EXIT IMMEDIATELY with current results
         }
         
-        if (abortController.current?.signal.aborted || shouldStop) {
+        // Check if processing should be stopped (but not if we just started)
+        if ((abortController.current?.signal.aborted || shouldStop) && batchIndex > 0) {
           throw new Error('Processing stopped by user');
         }
 
@@ -318,6 +319,22 @@ export const useBulkProcessing = () => {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Don't show error for intentional stops
+      if (errorMessage.includes('Processing stopped by user')) {
+        config.onDebugLog('info', '⏹️ Processing stopped by user request', {
+          processedSoFar: processingState.processedItems,
+          totalItems: customerIds.length
+        });
+        
+        setProcessingState(prev => ({
+          ...prev,
+          isProcessing: false,
+          isPaused: true // Allow resuming
+        }));
+        
+        return results; // Return what we've processed so far
+      }
       
       config.onDebugLog('error', '❌ Bulk Processing Failed', {
         error: errorMessage,
@@ -562,6 +579,9 @@ export const useBulkProcessing = () => {
     setShouldPause(false);
     setShouldStop(false);
     
+    // Small delay to ensure state updates are processed
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
     // Resume from checkpoint
     return processBulkCustomerIds(
       processingState.checkpoint.remainingCustomerIds,
@@ -569,7 +589,7 @@ export const useBulkProcessing = () => {
       [...existingProfiles, ...processingState.checkpoint.collectedProfiles],
       options
     );
-  }, [processingState.checkpoint, toast]);
+  }, [processingState.checkpoint, toast, processBulkCustomerIds]);
 
   /**
    * Completely reset processing state and clear checkpoints
