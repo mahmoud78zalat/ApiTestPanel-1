@@ -83,6 +83,7 @@ export const useBulkProcessing = () => {
     options: Partial<BulkProcessingOptions & { 
       preservedStartTime?: number;
       preservedProcessedCount?: number;
+      originalTotalCount?: number;
     }> = {}
   ): Promise<CustomerProfile[]> => {
     const config: BulkProcessingOptions = {
@@ -97,8 +98,10 @@ export const useBulkProcessing = () => {
     };
 
     // Initialize processing state and reset ALL flags
-    const startTime = Date.now();
+    const startTime = options.preservedStartTime || Date.now();
     const totalBatches = Math.ceil(customerIds.length / config.batchSize);
+    const originalTotalCount = options.originalTotalCount || customerIds.length;
+    const preservedProcessedCount = options.preservedProcessedCount || 0;
     
     // Reset ALL flags and create new abort controller for this processing session
     shouldStop.current = false;
@@ -109,13 +112,13 @@ export const useBulkProcessing = () => {
     const initialState: BulkProcessingState = {
       isProcessing: true,
       isPaused: false,
-      totalItems: customerIds.length,
-      processedItems: 0,
-      successfulItems: 0,
+      totalItems: originalTotalCount,
+      processedItems: preservedProcessedCount,
+      successfulItems: preservedProcessedCount,
       failedItems: 0,
       duplicateItems: 0,
-      currentBatch: 0,
-      totalBatches,
+      currentBatch: Math.ceil(preservedProcessedCount / config.batchSize),
+      totalBatches: Math.ceil(originalTotalCount / config.batchSize),
       startTime,
       estimatedTimeRemaining: 0,
       averageProcessingTime: 0,
@@ -251,11 +254,11 @@ export const useBulkProcessing = () => {
             ...processingState,
             isProcessing: true,
             isPaused: false,
-            processedItems: batchEnd,
-            successfulItems: results.length,
+            processedItems: preservedProcessedCount + batchEnd,
+            successfulItems: preservedProcessedCount + results.length,
             failedItems: batchResults?.failures?.length || 0,
             duplicateItems: batchResults?.duplicates || 0,
-            currentBatch: batchIndex + 1,
+            currentBatch: Math.ceil((preservedProcessedCount + batchEnd) / config.batchSize),
             averageProcessingTime: calculateAverageProcessingTime(),
             estimatedTimeRemaining: calculateEstimatedTimeRemaining(batchIndex + 1, totalBatches),
             errors: [...processingState.errors, ...(batchResults?.failures || [])],
@@ -318,8 +321,8 @@ export const useBulkProcessing = () => {
       const finalState: BulkProcessingState = {
         ...processingState,
         isProcessing: false,
-        processedItems: customerIds.length,
-        successfulItems: results.length,
+        processedItems: preservedProcessedCount + customerIds.length,
+        successfulItems: preservedProcessedCount + results.length,
         estimatedTimeRemaining: 0
       };
 
@@ -648,7 +651,8 @@ export const useBulkProcessing = () => {
           ...options,
           // Pass preserved performance state for resume
           preservedStartTime: preservedPerformance?.startTime,
-          preservedProcessedCount: preservedPerformance?.processedSoFar || 0
+          preservedProcessedCount: preservedPerformance?.processedSoFar || 0,
+          originalTotalCount: (preservedPerformance?.processedSoFar || 0) + checkpoint.remainingCustomerIds.length
         }
       );
       return results;
