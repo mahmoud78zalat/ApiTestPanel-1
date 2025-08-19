@@ -133,7 +133,7 @@ export const useBulkProcessing = () => {
       // Process in batches for optimal performance
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
         // CRITICAL: Check for pause request IMMEDIATELY - this creates a checkpoint and exits
-        if (shouldPause.current || abortController.current?.signal.aborted) {
+        if (shouldPause || abortController.current?.signal.aborted) {
           const remainingBatchIndex = batchIndex;
           const remainingIds = customerIds.slice(remainingBatchIndex * config.batchSize);
           
@@ -156,7 +156,7 @@ export const useBulkProcessing = () => {
             remainingItems: remainingIds.length,
             batchIndex,
             checkpointCreated: true,
-            reason: shouldPause.current ? 'User pause requested' : 'Abort signal triggered'
+            reason: shouldPause ? 'User pause requested' : 'Abort signal triggered'
           });
           
           return results; // EXIT IMMEDIATELY with current results
@@ -179,8 +179,9 @@ export const useBulkProcessing = () => {
         const batchStartTime = Date.now();
 
         // Process batch concurrently (5-10 requests at once) with abort monitoring
+        let batchResults;
         try {
-          const batchResults = await processBatchConcurrently(
+          batchResults = await processBatchConcurrently(
             batchIds,
             token,
             existingCustomerIds,
@@ -189,7 +190,7 @@ export const useBulkProcessing = () => {
           );
           
           // Check for abort/pause IMMEDIATELY after batch completes
-          if (shouldPause.current || abortController.current?.signal.aborted) {
+          if (shouldPause || abortController.current?.signal.aborted) {
             config.onDebugLog('info', '⏸️ Batch completed but pausing requested', {
               batchJustCompleted: batchIndex + 1,
               nextBatch: batchIndex + 2,
@@ -223,6 +224,33 @@ export const useBulkProcessing = () => {
 
           // Update results and state
           results.push(...batchResults.profiles);
+
+          const currentState: BulkProcessingState = {
+            ...processingState,
+            isProcessing: true,
+            isPaused: false,
+            processedItems: batchEnd,
+            successfulItems: results.length,
+            failedItems: batchResults?.failures?.length || 0,
+            duplicateItems: batchResults?.duplicates || 0,
+            currentBatch: batchIndex + 1,
+            averageProcessingTime: calculateAverageProcessingTime(),
+            estimatedTimeRemaining: calculateEstimatedTimeRemaining(batchIndex + 1, totalBatches),
+            errors: [...processingState.errors, ...(batchResults?.failures || [])],
+            checkpoint: null // Clear any previous checkpoint since we're actively processing
+          };
+
+          setProcessingState(currentState);
+          config.onProgress(currentState);
+
+          config.onDebugLog('success', `✅ Batch ${batchIndex + 1} Completed`, {
+            processedInBatch: batchIds.length,
+            successfulInBatch: batchResults?.profiles?.length || 0,
+            failedInBatch: batchResults?.failures?.length || 0,
+            duplicatesInBatch: batchResults?.duplicates || 0,
+            batchTime: batchProcessingTime,
+            totalProgress: `${batchEnd}/${customerIds.length}`
+          });
         } catch (error) {
           if (error instanceof Error && error.message.includes('aborted')) {
             config.onDebugLog('info', '⏸️ Batch processing aborted - creating checkpoint', {
@@ -251,33 +279,6 @@ export const useBulkProcessing = () => {
           
           throw error; // Re-throw non-abort errors
         }
-
-        const currentState: BulkProcessingState = {
-          ...processingState,
-          isProcessing: true,
-          isPaused: false,
-          processedItems: batchEnd,
-          successfulItems: results.length,
-          failedItems: batchResults.failures.length,
-          duplicateItems: batchResults.duplicates,
-          currentBatch: batchIndex + 1,
-          averageProcessingTime: calculateAverageProcessingTime(),
-          estimatedTimeRemaining: calculateEstimatedTimeRemaining(batchIndex + 1, totalBatches),
-          errors: [...processingState.errors, ...batchResults.failures],
-          checkpoint: null // Clear any previous checkpoint since we're actively processing
-        };
-
-        setProcessingState(currentState);
-        config.onProgress(currentState);
-
-        config.onDebugLog('success', `✅ Batch ${batchIndex + 1} Completed`, {
-          processedInBatch: batchIds.length,
-          successfulInBatch: batchResults.profiles.length,
-          failedInBatch: batchResults.failures.length,
-          duplicatesInBatch: batchResults.duplicates,
-          batchTime: batchProcessingTime,
-          totalProgress: `${batchEnd}/${customerIds.length}`
-        });
 
         // Small delay between batches to respect rate limits
         if (batchIndex < totalBatches - 1 && config.delayBetweenBatches > 0) {
@@ -605,6 +606,7 @@ export const useBulkProcessing = () => {
   const resetProcessingState = useCallback(() => {
     setProcessingState({
       isProcessing: false,
+      isPaused: false,
       totalItems: 0,
       processedItems: 0,
       successfulItems: 0,
@@ -615,7 +617,8 @@ export const useBulkProcessing = () => {
       startTime: 0,
       estimatedTimeRemaining: 0,
       averageProcessingTime: 0,
-      errors: []
+      errors: [],
+      checkpoint: null
     });
     processingTimes.current = [];
   }, []);
@@ -646,6 +649,7 @@ export const useBulkProcessing = () => {
     processingState,
     processBulkCustomerIds,
     pauseProcessing,
+    stopProcessing,
     resumeProcessing,
     resetProcessing,
     isProcessing: processingState.isProcessing,

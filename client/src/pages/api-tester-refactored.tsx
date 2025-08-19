@@ -77,6 +77,7 @@ export default function ApiTesterRefactored() {
     processingState,
     processBulkCustomerIds,
     pauseProcessing,
+    stopProcessing,
     resumeProcessing,
     resetProcessing,
     isProcessing,
@@ -155,7 +156,7 @@ export default function ApiTesterRefactored() {
   const handleSubmit = async () => {
     // Handle stop request for bulk processing
     if (bulkMode && isProcessing) {
-      pauseProcessing();
+      stopProcessing();
       stopMonitoring();
       return;
     }
@@ -183,7 +184,7 @@ export default function ApiTesterRefactored() {
         onProfileProcessed: (profile, isDuplicate) => {
           addProfile(profile);
           if (isDuplicate) {
-            logDuplicateDetection(profile.customerId, profile.fullName, 'skipped');
+            logDuplicateDetection(profile.customerId, 'skipped');
           }
         },
         onDebugLog: (level, message, data) => {
@@ -353,7 +354,7 @@ export default function ApiTesterRefactored() {
           onProfileProcessed: (profile, isDuplicate) => {
             addProfile(profile);
             if (isDuplicate) {
-              logDuplicateDetection(profile.customerId, profile.fullName, 'detected');
+              logDuplicateDetection(profile.customerId, 'detected');
             }
           },
           onDebugLog: (level, message, data) => {
