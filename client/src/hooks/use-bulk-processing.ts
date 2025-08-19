@@ -323,14 +323,26 @@ export const useBulkProcessing = () => {
       // Don't show error for intentional stops
       if (errorMessage.includes('Processing stopped by user')) {
         config.onDebugLog('info', '⏹️ Processing stopped by user request', {
-          processedSoFar: processingState.processedItems,
+          processedSoFar: results.length,
           totalItems: customerIds.length
         });
+        
+        // Create a checkpoint with remaining items so user can resume
+        const processedCount = results.length;
+        const remainingIds = customerIds.slice(processedCount);
+        
+        const checkpoint = {
+          processedCustomerIds: customerIds.slice(0, processedCount),
+          remainingCustomerIds: remainingIds,
+          collectedProfiles: results
+        };
         
         setProcessingState(prev => ({
           ...prev,
           isProcessing: false,
-          isPaused: true // Allow resuming
+          isPaused: true, // Allow resuming
+          processedItems: processedCount,
+          checkpoint: checkpoint // Ensure checkpoint is preserved
         }));
         
         return results; // Return what we've processed so far
@@ -656,13 +668,9 @@ export const useBulkProcessing = () => {
       abortController.current.abort();
     }
     
-    // Update processing state to reflect stop but allow resuming (like pause)
-    setProcessingState(prev => ({
-      ...prev,
-      isProcessing: false,
-      isPaused: true // Set to paused so it can be resumed
-    }));
-
+    // Don't immediately update state here - let the processing loop handle checkpoint creation
+    // This ensures the checkpoint is properly created with the right data
+    
     toast({
       title: "Processing Stopped",
       description: "Processing has been stopped. You can resume from this point anytime.",
