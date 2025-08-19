@@ -71,6 +71,43 @@ export const parseCurrency = (currencyString: string): number => {
 };
 
 /**
+ * Normalizes country names to avoid duplicates
+ * 
+ * @param country - Country name to normalize
+ * @returns Normalized country name
+ */
+export const normalizeCountryName = (country: string): string => {
+  if (!country) return 'Unknown';
+  
+  const normalized = country.toLowerCase().trim();
+  
+  // Handle UAE variations
+  if (normalized.includes('uae') || normalized.includes('united arab emirates') || normalized.includes('emirates')) {
+    return 'United Arab Emirates';
+  }
+  
+  // Handle UK variations
+  if (normalized.includes('uk') || normalized.includes('united kingdom') || normalized.includes('britain')) {
+    return 'United Kingdom';
+  }
+  
+  // Handle USA variations
+  if (normalized.includes('usa') || normalized.includes('united states') || normalized.includes('america')) {
+    return 'United States';
+  }
+  
+  // Handle KSA variations
+  if (normalized.includes('ksa') || normalized.includes('saudi') || normalized.includes('kingdom of saudi')) {
+    return 'Saudi Arabia';
+  }
+  
+  // Return properly capitalized version
+  return country.split(' ').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  ).join(' ');
+};
+
+/**
  * Determines country based on currency from orders
  * 
  * @param orders - Array of order objects
@@ -81,15 +118,15 @@ export const getCountryFromCurrency = (orders: any[]): string => {
   
   const currency = getActualCurrency(orders);
   
-  // Map currencies to countries
+  // Map currencies to countries (normalize UAE naming)
   if (currency.includes('AED')) {
-    return 'UAE';
+    return 'United Arab Emirates';
   } else if (currency.includes('USD') || currency === '$') {
     return 'Lebanon';
   } else if (currency.includes('EUR') || currency === '€') {
     return 'Europe';
   } else if (currency.includes('GBP') || currency === '£') {
-    return 'UK';
+    return 'United Kingdom';
   } else if (currency.includes('SAR')) {
     return 'Saudi Arabia';
   } else if (currency.includes('QAR')) {

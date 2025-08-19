@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { CustomerProfile } from "@shared/schema";
 import { formatDate } from "@/utils/date-utils";
-import { formatCurrency, getActualCurrency, getCountryFromCurrency } from "@/utils/currency-utils";
+import { formatCurrency, getActualCurrency, getCountryFromCurrency, normalizeCountryName } from "@/utils/currency-utils";
 
 interface ProfileManagementProps {
   /** Array of collected customer profiles */
@@ -60,8 +60,8 @@ export function ProfileManagement({
       country = getCountryFromCurrency(profile.latestOrders || []);
     }
     
-    // Fallback to 'Unknown' if still not found
-    if (!country || country === 'Unknown') country = 'Unknown';
+    // Normalize country name to avoid duplicates
+    country = normalizeCountryName(country || 'Unknown');
     
     acc[country] = (acc[country] || 0) + 1;
     return acc;

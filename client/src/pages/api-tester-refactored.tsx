@@ -102,8 +102,7 @@ export default function ApiTesterRefactored() {
     stopMonitoring,
     recordRequest,
     updateMetrics,
-    resetMetrics,
-    updateCacheStats
+    resetMetrics
   } = usePerformanceMonitoring();
 
   // Local state for bulk mode

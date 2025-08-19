@@ -7,7 +7,7 @@
 
 import type { CustomerProfile } from "@shared/schema";
 import { formatDate } from "./date-utils";
-import { formatCurrency, getActualCurrency, getCountryFromCurrency } from "./currency-utils";
+import { formatCurrency, getActualCurrency, getCountryFromCurrency, normalizeCountryName } from "./currency-utils";
 import { categorizeProfiles, getIncompleteReasons } from "./profile-validation";
 
 /**

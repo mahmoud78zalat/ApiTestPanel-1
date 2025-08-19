@@ -251,7 +251,7 @@ export class BrandsForLessService extends ApiService {
     try {
 
       const ordersRequest: ApiRequest = {
-        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${actualCustomerId}&pageNum=1&pageSize=1000`,
+        url: `https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId=${actualCustomerId}&pageNum=1&pageSize=99999`,
         method: "GET",
         token: token.trim(),
       };

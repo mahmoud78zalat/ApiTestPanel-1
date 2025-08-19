@@ -57,7 +57,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     id: "customer-orders",
     name: "Customer Orders",
     description: "Search for all orders for specific user",
-    url: "https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId={customerid}&pageNum=1&pageSize=1000",
+    url: "https://api.brandsforlessuae.com/shipment/api/v1/shipment/order?customerId={customerid}&pageNum=1&pageSize=99999",
     method: "GET",
     parameters: [
       {
