@@ -79,12 +79,14 @@ export const useBulkProcessing = () => {
       ...options
     };
 
-    // Initialize processing state
+    // Initialize processing state and reset flags
     const startTime = Date.now();
     const totalBatches = Math.ceil(customerIds.length / config.batchSize);
     
-    abortController.current = new AbortController();
+    // Reset state and create new abort controller for this processing session
+    setShouldStop(false);
     processingTimes.current = [];
+    abortController.current = new AbortController();
 
     const initialState: BulkProcessingState = {
       isProcessing: true,
@@ -252,10 +254,11 @@ export const useBulkProcessing = () => {
     const failures: Array<{ customerId: string; error: string; attempt: number }> = [];
     let duplicates = 0;
 
-    // Process all items in the batch concurrently
+    // Process all items in the batch concurrently with abort checking
     const promises = batchIds.map(async (customerId) => {
+      // Check for abort signal at the start of each request
       if (abortSignal.aborted) {
-        throw new Error('Aborted');
+        throw new Error('Processing aborted by user');
       }
 
       // Check for existing profile (duplicate detection)
@@ -271,6 +274,11 @@ export const useBulkProcessing = () => {
 
       // Retry logic for individual profile
       for (let attempt = 1; attempt <= config.retryAttempts; attempt++) {
+        // Check for abort before each attempt
+        if (abortSignal.aborted) {
+          throw new Error('Processing aborted by user');
+        }
+
         try {
           config.onDebugLog('info', `🔄 Processing Customer ${customerId}`, {
             attempt,
@@ -363,23 +371,47 @@ export const useBulkProcessing = () => {
   };
 
   /**
-   * Cancel ongoing bulk processing
+   * Cancel ongoing bulk processing with complete state reset
    */
   const cancelProcessing = useCallback(() => {
+    // Force stop the processing
+    setShouldStop(true);
+    
+    // Abort the current network requests
     if (abortController.current) {
       abortController.current.abort();
-      
-      setProcessingState(prev => ({
-        ...prev,
-        isProcessing: false
-      }));
-
-      toast({
-        title: "Processing Cancelled",
-        description: "Bulk processing has been stopped",
-        variant: "destructive",
-      });
+      abortController.current = null;
     }
+    
+    // Reset all processing state completely
+    setProcessingState({
+      isProcessing: false,
+      totalItems: 0,
+      processedItems: 0,
+      successfulItems: 0,
+      failedItems: 0,
+      duplicateItems: 0,
+      currentBatch: 0,
+      totalBatches: 0,
+      startTime: 0,
+      estimatedTimeRemaining: 0,
+      averageProcessingTime: 0,
+      errors: []
+    });
+    
+    // Reset processing times
+    processingTimes.current = [];
+    
+    // Reset stop flag after a brief delay to ensure everything is cleaned up
+    setTimeout(() => {
+      setShouldStop(false);
+    }, 100);
+
+    toast({
+      title: "Processing Cancelled",
+      description: "Bulk processing has been stopped",
+      variant: "destructive",
+    });
   }, [toast]);
 
   /**

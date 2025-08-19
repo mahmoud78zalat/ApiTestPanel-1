@@ -16,30 +16,87 @@ import { categorizeProfiles, getIncompleteReasons } from "./profile-validation";
 export type ExportFormat = 'csv' | 'txt';
 
 /**
- * Helper function to get fallback address from shipping data in orders
+ * Helper function to extract city from address string, filtering out store/shop details
+ */
+const extractCityFromAddress = (address: string): string => {
+  if (!address) return '';
+  
+  // Common patterns to identify city names in UAE addresses
+  const cityPatterns = [
+    /(?:city:\s*)?([A-Za-z\s]+)(?:,\s*(?:country|state|area))/i,
+    /(?:^|,\s*)([A-Za-z\s]+)\s*(?:,\s*(?:uae|united arab emirates|emirates))/i,
+    /(?:^|,\s*)(Dubai|Abu Dhabi|Sharjah|Ajman|Ras Al Khaimah|Fujairah|Umm Al Quwain|Al Ain)(?:\s|,|$)/i
+  ];
+  
+  for (const pattern of cityPatterns) {
+    const match = address.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  
+  // If no specific pattern found, try to extract the last meaningful location before country
+  const parts = address.split(',').map(p => p.trim());
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    // Skip country names and common store indicators
+    if (!part.toLowerCase().includes('united arab emirates') && 
+        !part.toLowerCase().includes('emirates') &&
+        !part.toLowerCase().includes('showroom') &&
+        !part.toLowerCase().includes('shop') &&
+        !part.toLowerCase().includes('store') &&
+        !part.toLowerCase().includes('mall') &&
+        !part.toLowerCase().includes('center') &&
+        !part.toLowerCase().includes('centre') &&
+        !part.toLowerCase().includes('boulevard') &&
+        part.length > 2 && part.length < 30) {
+      return part;
+    }
+  }
+  
+  return '';
+};
+
+/**
+ * Helper function to get fallback address from shipping data in orders (city and country only)
  */
 const getFallbackAddressFromOrders = (orders: any[]): { address: string; city: string; country: string; type: string } | null => {
   if (!orders?.length) return null;
   
   // Look for shipping address in latest orders
   for (const order of orders.slice(0, 3)) {
+    let shippingAddress = '';
+    let shippingCity = '';
+    let shippingCountry = '';
+    
     // Check enriched data first (priority 1)
     if (order?.enrichedData?.shippingAddress) {
-      return {
-        address: order.enrichedData.shippingAddress,
-        city: order.enrichedData.shippingState || order.enrichedData.shippingArea || '',
-        country: order.enrichedData.shippingCountry || 'United Arab Emirates',
-        type: 'shipping_fallback'
-      };
+      shippingAddress = order.enrichedData.shippingAddress;
+      shippingCity = order.enrichedData.shippingState || order.enrichedData.shippingArea || '';
+      shippingCountry = order.enrichedData.shippingCountry || 'United Arab Emirates';
     }
     // Fallback to direct order properties (priority 2)
     else if (order?.shippingAddress) {
-      return {
-        address: order.shippingAddress,
-        city: order.shippingState || order.shippingArea || '',
-        country: order.shippingCountry || 'United Arab Emirates',
-        type: 'shipping_fallback'
-      };
+      shippingAddress = order.shippingAddress;
+      shippingCity = order.shippingState || order.shippingArea || '';
+      shippingCountry = order.shippingCountry || 'United Arab Emirates';
+    }
+    
+    if (shippingAddress) {
+      // Extract city from the full address if not provided separately
+      if (!shippingCity) {
+        shippingCity = extractCityFromAddress(shippingAddress);
+      }
+      
+      // Only return city and country, not the full address
+      if (shippingCity || shippingCountry) {
+        return {
+          address: '', // Don't include full address
+          city: shippingCity || 'Unknown City',
+          country: shippingCountry,
+          type: 'shipping_fallback'
+        };
+      }
     }
   }
   
@@ -254,7 +311,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         profile.totalOrdersCount || 0,
         formatCurrency(profile.totalPurchasesAmount, currency),
         profile.addresses?.length || 0,
-        addressInfo.type === 'shipping_fallback' ? `${addressInfo.address} (Approximate)` : addressInfo.address,
+        addressInfo.type === 'shipping_fallback' ? `${addressInfo.city} (Approximate from latest order)` : addressInfo.address,
         addressInfo.city,
         addressInfo.country,
         addressInfo.type === 'shipping_fallback' ? 'Shipping Fallback' : addressInfo.type === 'stored' ? 'Stored' : 'None',
@@ -374,7 +431,7 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
           content += `\nADDRESSES: None saved\n`;
         } else if (addressInfo.type === 'shipping_fallback') {
           content += `\nADDRESSES (1 - Approximate from latest order):\n`;
-          content += `  1. ${addressInfo.address}\n`;
+          content += `  1. ${addressInfo.city} (Approximate from latest order)\n`;
           content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
         } else {
           content += `\nADDRESSES (${profile.addresses?.length || 1}):\n`;
@@ -441,7 +498,7 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
           content += `\nADDRESSES: None saved\n`;
         } else if (addressInfo.type === 'shipping_fallback') {
           content += `\nADDRESSES (1 - Approximate from latest order):\n`;
-          content += `  1. ${addressInfo.address}\n`;
+          content += `  1. ${addressInfo.city} (Approximate from latest order)\n`;
           content += `     City: ${addressInfo.city}, Country: ${addressInfo.country}\n`;
         } else {
           content += `\nADDRESSES (${profile.addresses?.length || 1}):\n`;
