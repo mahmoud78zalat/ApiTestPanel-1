@@ -12,6 +12,7 @@ A professional API testing and customer profile management platform for Brands f
 - Enhanced data processing and debugging mechanisms
 
 ## Recent Changes
+- **Vercel Deployment Fix (August 19, 2025)**: Fixed raw code display issue by correcting vercel.json configuration, API handler CORS setup, and static file serving
 - **Checkpoint System Implementation (August 19, 2025)**: Complete redesign of bulk processing with smooth pause/resume functionality
 - **Button State Management**: Fixed laggy stop button issues with proper state transitions and immediate UI feedback
 - **Smart Checkpoint Creation**: Processing now creates checkpoints at exact pause points for seamless resume
