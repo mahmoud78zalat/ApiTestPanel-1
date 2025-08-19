@@ -152,6 +152,7 @@ export const useBulkProcessing = () => {
 
         const currentState: BulkProcessingState = {
           ...processingState,
+          isProcessing: true, // Ensure processing state is maintained
           processedItems: batchEnd,
           successfulItems: results.length,
           failedItems: batchResults.failures.length,
