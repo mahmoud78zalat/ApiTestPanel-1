@@ -31,6 +31,11 @@ interface BulkProcessingState {
     processedCustomerIds: string[];
     remainingCustomerIds: string[];
     collectedProfiles: CustomerProfile[];
+    performanceState?: {
+      startTime: number;
+      processedSoFar: number;
+      processingTimes: number[];
+    };
   } | null;
 }
 
@@ -75,7 +80,10 @@ export const useBulkProcessing = () => {
     customerIds: string[],
     token: string,
     existingProfiles: CustomerProfile[],
-    options: Partial<BulkProcessingOptions> = {}
+    options: Partial<BulkProcessingOptions & { 
+      preservedStartTime?: number;
+      preservedProcessedCount?: number;
+    }> = {}
   ): Promise<CustomerProfile[]> => {
     const config: BulkProcessingOptions = {
       batchSize: 6, // Reduced for stability and to prevent freezing  
@@ -138,11 +146,17 @@ export const useBulkProcessing = () => {
           const remainingBatchIndex = batchIndex;
           const remainingIds = customerIds.slice(remainingBatchIndex * config.batchSize);
           
-          // Create checkpoint for smooth resume
+          // Create checkpoint for smooth resume (including performance monitor state)
           const checkpoint = {
             processedCustomerIds: customerIds.slice(0, remainingBatchIndex * config.batchSize),
             remainingCustomerIds: remainingIds,
-            collectedProfiles: results
+            collectedProfiles: results,
+            // Preserve performance monitor state for accurate resume
+            performanceState: {
+              startTime: startTime,
+              processedSoFar: results.length,
+              processingTimes: [...processingTimes.current]
+            }
           };
           
           setProcessingState(prev => ({
@@ -206,7 +220,13 @@ export const useBulkProcessing = () => {
             const checkpoint = {
               processedCustomerIds: customerIds.slice(0, (batchIndex + 1) * config.batchSize),
               remainingCustomerIds: remainingIds,
-              collectedProfiles: results
+              collectedProfiles: results,
+              // Preserve performance monitor state for accurate resume
+              performanceState: {
+                startTime: startTime,
+                processedSoFar: results.length,
+                processingTimes: [...processingTimes.current]
+              }
             };
             
             setProcessingState(prev => ({
@@ -260,12 +280,18 @@ export const useBulkProcessing = () => {
               currentResults: results.length
             });
             
-            // Create checkpoint even on abort
+            // Create checkpoint even on abort (including performance monitor state)
             const remainingIds = customerIds.slice(batchIndex * config.batchSize);
             const checkpoint = {
               processedCustomerIds: customerIds.slice(0, batchIndex * config.batchSize),
               remainingCustomerIds: remainingIds,
-              collectedProfiles: results
+              collectedProfiles: results,
+              // Preserve performance monitor state for accurate resume
+              performanceState: {
+                startTime: startTime,
+                processedSoFar: results.length,
+                processingTimes: [...processingTimes.current]
+              }
             };
             
             setProcessingState(prev => ({
@@ -334,7 +360,13 @@ export const useBulkProcessing = () => {
         const checkpoint = {
           processedCustomerIds: customerIds.slice(0, processedCount),
           remainingCustomerIds: remainingIds,
-          collectedProfiles: results
+          collectedProfiles: results,
+          // Preserve performance monitor state for accurate resume
+          performanceState: {
+            startTime: startTime,
+            processedSoFar: results.length,
+            processingTimes: [...processingTimes.current]
+          }
         };
         
         setProcessingState(prev => ({
@@ -599,12 +631,25 @@ export const useBulkProcessing = () => {
     shouldStop.current = false;
     
     try {
-      // Resume from checkpoint
+      // Resume from checkpoint with preserved performance state
+      const checkpoint = processingState.checkpoint;
+      const preservedPerformance = checkpoint.performanceState;
+      
+      // Restore processing times for accurate performance calculations
+      if (preservedPerformance) {
+        processingTimes.current = [...preservedPerformance.processingTimes];
+      }
+      
       const results = await processBulkCustomerIds(
-        processingState.checkpoint.remainingCustomerIds,
+        checkpoint.remainingCustomerIds,
         token,
-        [...existingProfiles, ...processingState.checkpoint.collectedProfiles],
-        options
+        [...existingProfiles, ...checkpoint.collectedProfiles],
+        {
+          ...options,
+          // Pass preserved performance state for resume
+          preservedStartTime: preservedPerformance?.startTime,
+          preservedProcessedCount: preservedPerformance?.processedSoFar || 0
+        }
       );
       return results;
     } catch (error) {
