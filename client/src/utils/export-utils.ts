@@ -414,6 +414,13 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         if (profile.addresses && profile.addresses.length > 0) {
           content += `\nADDRESSES (${profile.addresses.length}):\n`;
           profile.addresses.forEach((addr, idx) => {
+            // Handle cases where addr might be null or undefined
+            if (!addr) {
+              content += `  ${idx + 1}. [Empty address slot]\n`;
+              content += `     City: Unknown, Country: Unknown\n\n`;
+              return;
+            }
+            
             const addressLine = extractAddressLine(addr);
             const city = extractCity(addr);
             const country = extractCountry(addr);
@@ -422,6 +429,8 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
             content += `     City: ${city}, Country: ${country}\n`;
             if (addr.area) content += `     Area: ${addr.area}\n`;
             if (addr.zipcode || addr.zipCode) content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
+            // Add empty line between addresses for better readability
+            content += `\n`;
           });
         } else {
           content += `\nADDRESSES: None saved\n`;
@@ -483,6 +492,13 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         if (profile.addresses && profile.addresses.length > 0) {
           content += `\nADDRESSES (${profile.addresses.length}):\n`;
           profile.addresses.forEach((addr, idx) => {
+            // Handle cases where addr might be null or undefined
+            if (!addr) {
+              content += `  ${idx + 1}. [Empty address slot]\n`;
+              content += `     City: Unknown, Country: Unknown\n\n`;
+              return;
+            }
+            
             const addressLine = extractAddressLine(addr);
             const city = extractCity(addr);
             const country = extractCountry(addr);
@@ -491,6 +507,8 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
             content += `     City: ${city}, Country: ${country}\n`;
             if (addr.area) content += `     Area: ${addr.area}\n`;
             if (addr.zipcode || addr.zipCode) content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
+            // Add empty line between addresses for better readability
+            content += `\n`;
           });
         } else {
           content += `\nADDRESSES: None saved\n`;
