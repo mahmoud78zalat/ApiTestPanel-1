@@ -137,7 +137,7 @@ const extractCountry = (addr: any): string => {
 export const exportToCSV = (profiles: CustomerProfile[]): string => {
   if (profiles.length === 0) return '';
 
-  // CSV Headers including payment information
+  // CSV Headers including all addresses
   const headers = [
     'Customer ID',
     'Full Name',
@@ -149,7 +149,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
     'Total Orders',
     'Total Purchase Amount',
     'Address Count',
-    'Primary Address',
+    'All Addresses',
     'Primary City',
     'Primary Country',
     'Profile Status',
@@ -227,6 +227,16 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
       const shippingAddressFallback = !primaryAddress ? getShippingAddressFromOrders(profile.latestOrders || []) : '';
       const incompleteReasons = getIncompleteReasons(profile);
       
+      // Format all addresses as a single string
+      const allAddresses = profile.addresses && profile.addresses.length > 0 
+        ? profile.addresses.map((addr, idx) => {
+            const addressLine = extractAddressLine(addr);
+            const city = extractCity(addr);
+            const country = extractCountry(addr);
+            return `${idx + 1}. ${addressLine}, ${city}, ${country}`;
+          }).join(' | ')
+        : shippingAddressFallback || 'No addresses';
+
       const row = [
         profile.customerId,
         `"${profile.fullName}"`,
@@ -238,7 +248,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         profile.totalOrdersCount?.toString() || '0',
         formatCurrency(profile.totalPurchasesAmount, currency),
         profile.addresses?.length?.toString() || '0',
-        `"${primaryAddress ? extractAddressLine(primaryAddress) : ''}"`,
+        `"${allAddresses}"`,
         primaryAddress ? extractCity(primaryAddress) : '',
         primaryAddress ? extractCountry(primaryAddress) : country,
         'Complete',
@@ -268,6 +278,16 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
       const shippingAddressFallback = !primaryAddress ? getShippingAddressFromOrders(profile.latestOrders || []) : '';
       const incompleteReasons = getIncompleteReasons(profile);
       
+      // Format all addresses as a single string for incomplete profiles too
+      const allAddressesIncomplete = profile.addresses && profile.addresses.length > 0 
+        ? profile.addresses.map((addr, idx) => {
+            const addressLine = extractAddressLine(addr);
+            const city = extractCity(addr);
+            const country = extractCountry(addr);
+            return `${idx + 1}. ${addressLine}, ${city}, ${country}`;
+          }).join(' | ')
+        : shippingAddressFallback || 'No addresses';
+
       const row = [
         profile.customerId,
         `"${profile.fullName}"`,
@@ -279,7 +299,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         profile.totalOrdersCount?.toString() || '0',
         formatCurrency(profile.totalPurchasesAmount, currency),
         profile.addresses?.length?.toString() || '0',
-        `"${primaryAddress ? extractAddressLine(primaryAddress) : shippingAddressFallback}"`,
+        `"${allAddressesIncomplete}"`,
         primaryAddress ? extractCity(primaryAddress) : '',
         primaryAddress ? extractCountry(primaryAddress) : country,
         'Incomplete',

@@ -15,6 +15,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Upload, FileText, File, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+interface CustomerData {
+  customerId: string;
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  totalOrders?: string;
+  totalAmount?: string;
+}
+
 interface UploadDialogProps {
   /** Whether the dialog is open */
   open: boolean;
@@ -29,7 +38,7 @@ export function UploadDialog({ open, onOpenChange, onFileProcessed }: UploadDial
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadFormat, setUploadFormat] = useState<'csv' | 'txt'>('csv');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [previewData, setPreviewData] = useState<string[]>([]);
+  const [previewData, setPreviewData] = useState<CustomerData[]>([]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -55,7 +64,7 @@ export function UploadDialog({ open, onOpenChange, onFileProcessed }: UploadDial
     try {
       const content = await file.text();
       const preview = await parseFilePreview(content, uploadFormat);
-      setPreviewData(preview.slice(0, 5)); // Show first 5 IDs as preview
+      setPreviewData(preview.slice(0, 5)); // Show first 5 customer profiles as preview
     } catch (error) {
       toast({
         title: "File Read Error",
@@ -65,31 +74,88 @@ export function UploadDialog({ open, onOpenChange, onFileProcessed }: UploadDial
     }
   };
 
-  const parseFilePreview = async (content: string, format: 'csv' | 'txt'): Promise<string[]> => {
-    const customerIds: string[] = [];
+  const parseFilePreview = async (content: string, format: 'csv' | 'txt'): Promise<CustomerData[]> => {
+    const customerData: CustomerData[] = [];
 
     if (format === 'csv') {
       const lines = content.split('\n').filter(line => line.trim());
-      // Skip header row
+      if (lines.length < 2) return [];
+      
+      // Parse header to find column positions
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
+      const idIndex = headers.findIndex(h => h.includes('customer id') || h.includes('id'));
+      const nameIndex = headers.findIndex(h => h.includes('full name') || h.includes('name'));
+      const emailIndex = headers.findIndex(h => h.includes('email'));
+      const phoneIndex = headers.findIndex(h => h.includes('phone'));
+      const ordersIndex = headers.findIndex(h => h.includes('total orders'));
+      const amountIndex = headers.findIndex(h => h.includes('total purchase amount') || h.includes('amount'));
+      
+      // Parse first 5 data rows
       for (let i = 1; i < Math.min(lines.length, 6); i++) {
-        const columns = lines[i].split(',');
-        if (columns[0] && columns[0].trim()) {
-          customerIds.push(columns[0].trim());
+        const columns = lines[i].split(',').map(col => col.trim().replace(/"/g, ''));
+        if (columns[idIndex] && columns[idIndex].trim()) {
+          customerData.push({
+            customerId: columns[idIndex] || '',
+            fullName: nameIndex >= 0 ? columns[nameIndex] : undefined,
+            email: emailIndex >= 0 ? columns[emailIndex] : undefined,
+            phoneNumber: phoneIndex >= 0 ? columns[phoneIndex] : undefined,
+            totalOrders: ordersIndex >= 0 ? columns[ordersIndex] : undefined,
+            totalAmount: amountIndex >= 0 ? columns[amountIndex] : undefined
+          });
         }
       }
     } else if (format === 'txt') {
       const lines = content.split('\n');
-      for (const line of lines.slice(0, 5)) {
+      let currentCustomer: Partial<CustomerData> = {};
+      let customerCount = 0;
+      
+      for (const line of lines) {
+        if (customerCount >= 5) break;
+        
         if (line.includes('Customer ID:')) {
+          // Save previous customer if exists
+          if (currentCustomer.customerId) {
+            customerData.push(currentCustomer as CustomerData);
+            customerCount++;
+          }
+          // Start new customer
           const match = line.match(/Customer ID:\s*(.+)/);
-          if (match && match[1]) {
-            customerIds.push(match[1].trim());
+          currentCustomer = { customerId: match?.[1]?.trim() || '' };
+        } else if (line.includes('Full Name:')) {
+          const match = line.match(/Full Name:\s*(.+)/);
+          if (match?.[1] && currentCustomer) {
+            currentCustomer.fullName = match[1].trim();
+          }
+        } else if (line.includes('Email:')) {
+          const match = line.match(/Email:\s*(.+)/);
+          if (match?.[1] && currentCustomer && !match[1].includes('Not available')) {
+            currentCustomer.email = match[1].trim();
+          }
+        } else if (line.includes('Phone:')) {
+          const match = line.match(/Phone:\s*(.+)/);
+          if (match?.[1] && currentCustomer && !match[1].includes('Not available')) {
+            currentCustomer.phoneNumber = match[1].trim();
+          }
+        } else if (line.includes('Total Orders:')) {
+          const match = line.match(/Total Orders:\s*(.+)/);
+          if (match?.[1] && currentCustomer) {
+            currentCustomer.totalOrders = match[1].trim();
+          }
+        } else if (line.includes('Total Purchase Amount:') || line.includes('Total Amount:')) {
+          const match = line.match(/Total (?:Purchase )?Amount:\s*(.+)/);
+          if (match?.[1] && currentCustomer) {
+            currentCustomer.totalAmount = match[1].trim();
           }
         }
       }
+      
+      // Add last customer if exists
+      if (currentCustomer.customerId && customerCount < 5) {
+        customerData.push(currentCustomer as CustomerData);
+      }
     }
 
-    return customerIds;
+    return customerData;
   };
 
   const parseFullFile = async (content: string, format: 'csv' | 'txt'): Promise<string[]> => {
@@ -101,7 +167,7 @@ export function UploadDialog({ open, onOpenChange, onFileProcessed }: UploadDial
       for (let i = 1; i < lines.length; i++) {
         const columns = lines[i].split(',');
         if (columns[0] && columns[0].trim()) {
-          customerIds.push(columns[0].trim());
+          customerIds.push(columns[0].trim().replace(/"/g, ''));
         }
       }
     } else if (format === 'txt') {
@@ -232,16 +298,21 @@ export function UploadDialog({ open, onOpenChange, onFileProcessed }: UploadDial
           {previewData.length > 0 && (
             <Card>
               <CardContent className="p-4">
-                <div className="text-sm font-medium mb-2">Preview (first 5 IDs):</div>
-                <div className="space-y-1">
-                  {previewData.map((id, index) => (
-                    <div key={index} className="text-xs font-mono bg-gray-100 p-1 rounded">
-                      {id}
+                <div className="text-sm font-medium mb-2">Preview (first 5 customers):</div>
+                <div className="space-y-2">
+                  {previewData.map((customer, index) => (
+                    <div key={index} className="text-xs bg-gray-100 p-2 rounded">
+                      <div className="font-medium text-blue-900">ID: {customer.customerId}</div>
+                      {customer.fullName && <div className="text-gray-700">Name: {customer.fullName}</div>}
+                      {customer.email && <div className="text-gray-700">Email: {customer.email}</div>}
+                      {customer.phoneNumber && <div className="text-gray-700">Phone: {customer.phoneNumber}</div>}
+                      {customer.totalOrders && <div className="text-gray-700">Orders: {customer.totalOrders}</div>}
+                      {customer.totalAmount && <div className="text-gray-700">Amount: {customer.totalAmount}</div>}
                     </div>
                   ))}
                   {previewData.length >= 5 && (
                     <div className="text-xs text-gray-500 italic">
-                      ... and more
+                      ... and more customers in the file
                     </div>
                   )}
                 </div>
