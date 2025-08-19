@@ -93,17 +93,30 @@ export const usePerformanceMonitoring = () => {
     }
     lastUpdateTime.current = now;
 
-    setMetrics(prev => ({
-      ...prev,
-      totalRequests: bulkState.totalItems,
-      completedRequests: bulkState.processedItems,
-      successfulRequests: bulkState.successfulItems,
-      failedRequests: bulkState.failedItems,
-      averageResponseTime: bulkState.averageProcessingTime,
-      activeConnections: bulkState.activeConnections,
-      profilesPerSecond: bulkState.processedItems > 0 && prev.startTime ? 
-        Math.round((bulkState.processedItems / ((now - prev.startTime) / 1000)) * 100) / 100 : 0
-    }));
+    setMetrics(prev => {
+      // Calculate profiles per second
+      const elapsedTime = now - prev.startTime;
+      const profilesPerSecond = elapsedTime > 0 && bulkState.processedItems > 0 ? 
+        Math.round((bulkState.processedItems / (elapsedTime / 1000)) * 100) / 100 : 0;
+
+      // Calculate cache hit rate
+      const totalCacheRequests = cacheStats.current.hits + cacheStats.current.misses;
+      const cacheHitRate = totalCacheRequests > 0
+        ? (cacheStats.current.hits / totalCacheRequests) * 100
+        : prev.cacheHitRate;
+
+      return {
+        ...prev,
+        totalRequests: bulkState.totalItems,
+        completedRequests: bulkState.processedItems,
+        successfulRequests: bulkState.successfulItems,
+        failedRequests: bulkState.failedItems,
+        averageResponseTime: bulkState.averageProcessingTime,
+        activeConnections: bulkState.activeConnections,
+        profilesPerSecond,
+        cacheHitRate
+      };
+    });
   }, []);
 
   /**
@@ -154,8 +167,12 @@ export const usePerformanceMonitoring = () => {
       const elapsedTime = now - prev.startTime;
       const profilesPerSecond = elapsedTime > 0 ? Math.round((completedRequests / (elapsedTime / 1000)) * 100) / 100 : 0;
 
+      // Ensure totalRequests is never less than completedRequests
+      const adjustedTotalRequests = Math.max(prev.totalRequests, completedRequests);
+
       return {
         ...prev,
+        totalRequests: adjustedTotalRequests,
         completedRequests,
         successfulRequests,
         failedRequests,

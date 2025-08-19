@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { CustomerProfile } from "@shared/schema";
 import { formatDate } from "@/utils/date-utils";
-import { formatCurrency, getActualCurrency } from "@/utils/currency-utils";
+import { formatCurrency, getActualCurrency, getCountryFromCurrency } from "@/utils/currency-utils";
 
 interface ProfileManagementProps {
   /** Array of collected customer profiles */
@@ -52,7 +52,17 @@ export function ProfileManagement({
 
   const totalProfiles = profiles.length;
   const countryCounts = profiles.reduce((acc, profile) => {
-    const country = profile.addresses?.[0]?.country || 'Unknown';
+    // First try to get country from address
+    let country = profile.addresses?.[0]?.country;
+    
+    // If no address country or it's unknown, try to determine from currency
+    if (!country || country === 'Unknown') {
+      country = getCountryFromCurrency(profile.latestOrders || []);
+    }
+    
+    // Fallback to 'Unknown' if still not found
+    if (!country || country === 'Unknown') country = 'Unknown';
+    
     acc[country] = (acc[country] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);

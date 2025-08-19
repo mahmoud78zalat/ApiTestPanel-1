@@ -85,10 +85,10 @@ export const getCountryFromCurrency = (orders: any[]): string => {
   if (currency.includes('AED')) {
     return 'UAE';
   } else if (currency.includes('USD') || currency === '$') {
-    return 'USA';
-  } else if (currency.includes('EUR')) {
+    return 'Lebanon';
+  } else if (currency.includes('EUR') || currency === '€') {
     return 'Europe';
-  } else if (currency.includes('GBP')) {
+  } else if (currency.includes('GBP') || currency === '£') {
     return 'UK';
   } else if (currency.includes('SAR')) {
     return 'Saudi Arabia';
@@ -100,6 +100,18 @@ export const getCountryFromCurrency = (orders: any[]): string => {
     return 'Bahrain';
   } else if (currency.includes('OMR')) {
     return 'Oman';
+  } else if (currency.includes('LBP') || currency.includes('LL')) {
+    return 'Lebanon';
+  } else if (currency.includes('EGP')) {
+    return 'Egypt';
+  } else if (currency.includes('JOD')) {
+    return 'Jordan';
+  } else if (currency.includes('SYP')) {
+    return 'Syria';
+  } else if (currency.includes('IQD')) {
+    return 'Iraq';
+  } else if (currency.includes('TRY')) {
+    return 'Turkey';
   }
   
   return 'Unknown';
