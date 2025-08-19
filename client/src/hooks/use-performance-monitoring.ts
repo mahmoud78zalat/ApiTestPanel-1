@@ -45,10 +45,11 @@ export const usePerformanceMonitoring = () => {
    * Start monitoring performance
    */
   const startMonitoring = useCallback((totalRequests: number) => {
+    console.log('[Performance Monitor] Starting with total requests:', totalRequests);
     setIsMonitoring(true);
     lastUpdateTime.current = 0; // Reset throttle timer
-    setMetrics({
-      totalRequests,
+    const initialMetrics = {
+      totalRequests: Math.max(totalRequests, 1), // Ensure never 0
       completedRequests: 0,
       successfulRequests: 0,
       failedRequests: 0,
@@ -59,7 +60,9 @@ export const usePerformanceMonitoring = () => {
       duplicateProfiles: 0,
       profilesPerSecond: 0,
       activeConnections: 0
-    });
+    };
+    console.log('[Performance Monitor] Initial metrics:', initialMetrics);
+    setMetrics(initialMetrics);
     responseTimes.current = [];
     cacheStats.current = { hits: 0, misses: 0 };
   }, []);
@@ -93,6 +96,8 @@ export const usePerformanceMonitoring = () => {
     }
     lastUpdateTime.current = now;
 
+    console.log('[Performance Monitor] Updating metrics:', bulkState);
+
     setMetrics(prev => {
       // Calculate profiles per second
       const elapsedTime = now - prev.startTime;
@@ -105,9 +110,12 @@ export const usePerformanceMonitoring = () => {
         ? (cacheStats.current.hits / totalCacheRequests) * 100
         : prev.cacheHitRate;
 
-      return {
+      // Ensure total is never less than processed and never becomes 0 after being set
+      const safeTotalRequests = Math.max(bulkState.totalItems, bulkState.processedItems, prev.totalRequests);
+
+      const newMetrics = {
         ...prev,
-        totalRequests: bulkState.totalItems,
+        totalRequests: safeTotalRequests,
         completedRequests: bulkState.processedItems,
         successfulRequests: bulkState.successfulItems,
         failedRequests: bulkState.failedItems,
@@ -116,6 +124,9 @@ export const usePerformanceMonitoring = () => {
         profilesPerSecond,
         cacheHitRate
       };
+
+      console.log('[Performance Monitor] New metrics state:', newMetrics);
+      return newMetrics;
     });
   }, []);
 

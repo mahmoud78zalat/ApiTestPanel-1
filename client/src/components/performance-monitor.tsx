@@ -70,10 +70,22 @@ export function PerformanceMonitor({
     return () => clearInterval(interval);
   }, [isActive, metrics.startTime]);
 
-  // Calculate derived metrics
+  // Calculate derived metrics with debugging
   const completionPercentage = metrics.totalRequests > 0 
     ? (metrics.completedRequests / metrics.totalRequests) * 100 
     : 0;
+    
+  // Log for debugging progress issues
+  useEffect(() => {
+    if (isActive) {
+      console.log('[Performance Monitor Display] Metrics updated:', {
+        totalRequests: metrics.totalRequests,
+        completedRequests: metrics.completedRequests,
+        ratio: `${metrics.completedRequests}/${metrics.totalRequests}`,
+        percentage: completionPercentage
+      });
+    }
+  }, [metrics.totalRequests, metrics.completedRequests, completionPercentage, isActive]);
 
   const successRate = metrics.completedRequests > 0 
     ? (metrics.successfulRequests / metrics.completedRequests) * 100 
