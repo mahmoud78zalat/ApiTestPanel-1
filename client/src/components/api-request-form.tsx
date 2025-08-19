@@ -281,12 +281,13 @@ export function ApiRequestForm({
         <div className="flex space-x-2 pt-4">
           <Button 
             onClick={onSubmit} 
-            disabled={!bulkMode && !isProcessing && (!url && !currentEndpoint) || (!bulkMode && isLoading)}
-            className="flex-1"
+            disabled={(!bulkMode && (isLoading || (!url && !currentEndpoint))) || (bulkMode && !bulkInput.trim() && !isProcessing)}
+            className={`flex-1 transition-all duration-300 ${bulkMode && isProcessing ? 'bg-red-600 hover:bg-red-700 text-white border-red-500 shadow-lg transform scale-[1.02]' : ''}`}
+            variant={bulkMode && isProcessing ? "destructive" : "default"}
           >
             {bulkMode && isProcessing ? (
               <>
-                <Square className="w-4 h-4 mr-2" />
+                <Square className="w-4 h-4 mr-2 animate-pulse text-white" />
                 Stop Processing
               </>
             ) : bulkMode ? (
