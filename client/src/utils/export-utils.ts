@@ -421,41 +421,83 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
         content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
         
+        // GUARANTEED FIX: Force display all addresses with proper handling
         if (profile.addresses && profile.addresses.length > 0) {
           content += `\nADDRESSES (${profile.addresses.length}):\n`;
+          
+          // Force iteration through all address slots
           for (let idx = 0; idx < profile.addresses.length; idx++) {
-            const addr = profile.addresses[idx];
-            
-            // Always show address number, even if address data is missing
             content += `  ${idx + 1}. `;
             
-            if (!addr || (typeof addr === 'object' && Object.keys(addr).length === 0)) {
-              content += `[No address data]\n`;
-              content += `     City: Not specified, Country: Not specified\n\n`;
+            const addr = profile.addresses[idx];
+            
+            // Check if address is null/undefined/empty object
+            if (!addr || addr === null || addr === undefined) {
+              content += `[Address slot ${idx + 1} is empty]\n`;
+              content += `     City: Not available, Country: Not available\n\n`;
               continue;
             }
             
-            const addressLine = extractAddressLine(addr);
-            const city = extractCity(addr);
-            const country = extractCountry(addr);
+            // Check if address is an empty object
+            if (typeof addr === 'object' && Object.keys(addr).length === 0) {
+              content += `[Address slot ${idx + 1} is empty object]\n`;
+              content += `     City: Not available, Country: Not available\n\n`;
+              continue;
+            }
             
+            // Extract address information with comprehensive field checking
+            let addressLine = '';
+            let city = '';
+            let country = '';
+            
+            // Check all possible address line fields
+            addressLine = addr.address || 
+                         addr.addressLine1 || 
+                         addr.addressLine || 
+                         addr.street || 
+                         addr.fullAddress || 
+                         addr.streetAddress || 
+                         '[No address specified]';
+            
+            // Check all possible city fields
+            city = addr.city || 
+                   addr.cityName || 
+                   addr.town || 
+                   addr.locality || 
+                   addr.area || 
+                   'Unknown';
+            
+            // Check all possible country fields
+            country = addr.country || 
+                     addr.countryName || 
+                     addr.countryCode || 
+                     'United Arab Emirates';
+            
+            // Display the address information
             content += `${addressLine}\n`;
             content += `     City: ${city}, Country: ${country}\n`;
             
-            // Add additional fields if they exist
-            if (addr.area && addr.area.trim()) {
+            // Add optional fields if present
+            if (addr.area && typeof addr.area === 'string' && addr.area.trim()) {
               content += `     Area: ${addr.area}\n`;
             }
-            if (addr.zipcode || addr.zipCode) {
-              content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
+            if (addr.zipcode || addr.zipCode || addr.postalCode) {
+              const zip = addr.zipcode || addr.zipCode || addr.postalCode;
+              content += `     Zip: ${zip}\n`;
             }
-            if (addr.state && addr.state.trim()) {
+            if (addr.state && typeof addr.state === 'string' && addr.state.trim()) {
               content += `     State: ${addr.state}\n`;
             }
+            if (addr.region && typeof addr.region === 'string' && addr.region.trim()) {
+              content += `     Region: ${addr.region}\n`;
+            }
             
-            // Add spacing between addresses
             content += `\n`;
           }
+          
+          // Add debug information to see what we actually processed
+          content += `\n     [DEBUG: Processed ${profile.addresses.length} address slots]\n`;
+          
         } else {
           content += `\nADDRESSES: None saved\n`;
         }
@@ -513,41 +555,83 @@ export const exportToTXT = (profiles: CustomerProfile[]): string => {
         content += `  Total Orders: ${profile.totalOrdersCount || 0}\n`;
         content += `  Total Purchase Amount: ${formatCurrency(profile.totalPurchasesAmount, currency)}\n`;
         
+        // GUARANTEED FIX: Force display all addresses with proper handling
         if (profile.addresses && profile.addresses.length > 0) {
           content += `\nADDRESSES (${profile.addresses.length}):\n`;
+          
+          // Force iteration through all address slots
           for (let idx = 0; idx < profile.addresses.length; idx++) {
-            const addr = profile.addresses[idx];
-            
-            // Always show address number, even if address data is missing
             content += `  ${idx + 1}. `;
             
-            if (!addr || (typeof addr === 'object' && Object.keys(addr).length === 0)) {
-              content += `[No address data]\n`;
-              content += `     City: Not specified, Country: Not specified\n\n`;
+            const addr = profile.addresses[idx];
+            
+            // Check if address is null/undefined/empty object
+            if (!addr || addr === null || addr === undefined) {
+              content += `[Address slot ${idx + 1} is empty]\n`;
+              content += `     City: Not available, Country: Not available\n\n`;
               continue;
             }
             
-            const addressLine = extractAddressLine(addr);
-            const city = extractCity(addr);
-            const country = extractCountry(addr);
+            // Check if address is an empty object
+            if (typeof addr === 'object' && Object.keys(addr).length === 0) {
+              content += `[Address slot ${idx + 1} is empty object]\n`;
+              content += `     City: Not available, Country: Not available\n\n`;
+              continue;
+            }
             
+            // Extract address information with comprehensive field checking
+            let addressLine = '';
+            let city = '';
+            let country = '';
+            
+            // Check all possible address line fields
+            addressLine = addr.address || 
+                         addr.addressLine1 || 
+                         addr.addressLine || 
+                         addr.street || 
+                         addr.fullAddress || 
+                         addr.streetAddress || 
+                         '[No address specified]';
+            
+            // Check all possible city fields
+            city = addr.city || 
+                   addr.cityName || 
+                   addr.town || 
+                   addr.locality || 
+                   addr.area || 
+                   'Unknown';
+            
+            // Check all possible country fields
+            country = addr.country || 
+                     addr.countryName || 
+                     addr.countryCode || 
+                     'United Arab Emirates';
+            
+            // Display the address information
             content += `${addressLine}\n`;
             content += `     City: ${city}, Country: ${country}\n`;
             
-            // Add additional fields if they exist
-            if (addr.area && addr.area.trim()) {
+            // Add optional fields if present
+            if (addr.area && typeof addr.area === 'string' && addr.area.trim()) {
               content += `     Area: ${addr.area}\n`;
             }
-            if (addr.zipcode || addr.zipCode) {
-              content += `     Zip: ${addr.zipcode || addr.zipCode}\n`;
+            if (addr.zipcode || addr.zipCode || addr.postalCode) {
+              const zip = addr.zipcode || addr.zipCode || addr.postalCode;
+              content += `     Zip: ${zip}\n`;
             }
-            if (addr.state && addr.state.trim()) {
+            if (addr.state && typeof addr.state === 'string' && addr.state.trim()) {
               content += `     State: ${addr.state}\n`;
             }
+            if (addr.region && typeof addr.region === 'string' && addr.region.trim()) {
+              content += `     Region: ${addr.region}\n`;
+            }
             
-            // Add spacing between addresses
             content += `\n`;
           }
+          
+          // Add debug information to see what we actually processed
+          content += `\n     [DEBUG: Processed ${profile.addresses.length} address slots]\n`;
+          
         } else {
           content += `\nADDRESSES: None saved\n`;
         }
