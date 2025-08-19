@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Play, Settings, RotateCcw, Plus } from "lucide-react";
+import { Play, Settings, RotateCcw, Plus, Square } from "lucide-react";
 
 import { API_ENDPOINTS, DEFAULT_CONFIG, type ApiEndpoint } from "@/config/api-endpoints";
 import { constructUrl } from "@/utils/url-utils";
@@ -278,11 +278,25 @@ export function ApiRequestForm({
         <div className="flex space-x-2 pt-4">
           <Button 
             onClick={onSubmit} 
-            disabled={isLoading || (!url && !currentEndpoint)}
+            disabled={!isLoading && (!url && !currentEndpoint) || (!bulkMode && isLoading)}
             className="flex-1"
           >
-            <Play className="w-4 h-4 mr-2" />
-            {bulkMode ? 'Start Bulk Processing' : 'Send Request'}
+            {bulkMode && isLoading ? (
+              <>
+                <Square className="w-4 h-4 mr-2" />
+                Stop Processing
+              </>
+            ) : bulkMode ? (
+              <>
+                <Play className="w-4 h-4 mr-2" />
+                Start Bulk Processing
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4 mr-2" />
+                Send Request
+              </>
+            )}
           </Button>
           
           <Button variant="outline" onClick={handleReset} disabled={isLoading}>

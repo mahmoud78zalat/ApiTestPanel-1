@@ -57,6 +57,7 @@ export const useBulkProcessing = () => {
 
   const abortController = useRef<AbortController | null>(null);
   const processingTimes = useRef<number[]>([]);
+  const [shouldStop, setShouldStop] = useState(false);
 
   /**
    * Process multiple customer IDs in optimized batches
@@ -118,8 +119,8 @@ export const useBulkProcessing = () => {
     try {
       // Process in batches for optimal performance
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        if (abortController.current?.signal.aborted) {
-          throw new Error('Processing aborted by user');
+        if (abortController.current?.signal.aborted || shouldStop) {
+          throw new Error('Processing stopped by user');
         }
 
         const batchStart = batchIndex * config.batchSize;
@@ -401,10 +402,23 @@ export const useBulkProcessing = () => {
     processingTimes.current = [];
   }, []);
 
+  /**
+   * Stop processing by setting the stop flag
+   */
+  const stopProcessing = useCallback(() => {
+    setShouldStop(true);
+    if (abortController.current) {
+      abortController.current.abort();
+    }
+  }, []);
+
   return {
     processingState,
     processBulkCustomerIds,
     cancelProcessing,
-    resetProcessingState
+    stopProcessing,
+    resetProcessingState,
+    isProcessing: processingState.isProcessing,
+    shouldStop
   };
 };

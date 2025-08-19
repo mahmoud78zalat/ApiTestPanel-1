@@ -76,7 +76,10 @@ export default function ApiTesterRefactored() {
     processingState,
     processBulkCustomerIds,
     cancelProcessing,
-    resetProcessingState
+    stopProcessing,
+    resetProcessingState,
+    isProcessing,
+    shouldStop
   } = useBulkProcessing();
 
   // Profile collection with duplicate tracking
@@ -148,6 +151,17 @@ export default function ApiTesterRefactored() {
    * Handles form submission for both single and bulk requests
    */
   const handleSubmit = async () => {
+    // Handle stop request for bulk processing
+    if (bulkMode && isProcessing) {
+      stopProcessing();
+      stopMonitoring();
+      toast({
+        title: "Processing Stopped",
+        description: "Bulk processing has been stopped by user request",
+      });
+      return;
+    }
+    
     if (!bulkMode) {
       // Single request mode
       startMonitoring(1);

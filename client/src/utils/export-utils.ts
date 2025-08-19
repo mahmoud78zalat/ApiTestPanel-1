@@ -234,6 +234,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
     for (const profile of sortedIncompleteProfiles) {
       const currency = getActualCurrency(profile.latestOrders);
       const primaryAddress = profile.addresses?.[0];
+      const shippingAddressFallback = !primaryAddress ? getShippingAddressFromOrders(profile.latestOrders || []) : '';
       const incompleteReasons = getIncompleteReasons(profile);
       
       const row = [
@@ -247,7 +248,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
         profile.totalOrdersCount?.toString() || '0',
         formatCurrency(profile.totalPurchasesAmount, currency),
         profile.addresses?.length?.toString() || '0',
-        `"${primaryAddress ? extractAddressLine(primaryAddress) : ''}"`,
+        `"${primaryAddress ? extractAddressLine(primaryAddress) : shippingAddressFallback}"`,
         primaryAddress ? extractCity(primaryAddress) : '',
         primaryAddress ? extractCountry(primaryAddress) : country,
         'Incomplete',

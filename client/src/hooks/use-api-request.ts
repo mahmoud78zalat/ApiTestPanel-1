@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiService, BrandsForLessService } from "@/services/api-service";
 import { constructUrl } from "@/utils/url-utils";
 import { DEFAULT_CONFIG, API_ENDPOINTS } from "@/config/api-endpoints";
+import { getShippingAddressFromOrders } from "@/utils/currency-utils";
 import type { ApiRequest, ApiResponse } from "@/types/api";
 import type { CustomerProfile } from "@shared/schema";
 
@@ -82,14 +83,40 @@ export const useApiRequest = () => {
       }
 
       // The BrandsForLessService now returns the complete profile directly
+      // Extract addresses and orders
+      const addresses = Array.isArray(profileData.addresses) ? profileData.addresses : [];
+      const latestOrders = Array.isArray(profileData.latestOrders) ? profileData.latestOrders : [];
+      
+      // If no customer address, try to extract shipping address from orders as fallback
+      let finalAddresses = [...addresses];
+      if (addresses.length === 0 && latestOrders.length > 0) {
+        const shippingAddressText = getShippingAddressFromOrders(latestOrders);
+        if (shippingAddressText) {
+          // Extract shipping details from orders
+          const firstOrderWithShipping = latestOrders.find((order: any) => 
+            order.enrichedData?.shippingAddress || order.shippingAddress
+          );
+          
+          if (firstOrderWithShipping) {
+            const shippingData = firstOrderWithShipping.enrichedData || firstOrderWithShipping;
+            finalAddresses.push({
+              address: shippingData.shippingAddress || shippingAddressText,
+              city: shippingData.shippingState || '',
+              country: shippingData.shippingCountry || 'Unknown',
+              type: 'shipping_fallback'
+            });
+          }
+        }
+      }
+
       const profile: CustomerProfile = {
         customerId: profileData.customerId || customerId,
         fullName: profileData.fullName,
-        addresses: profileData.addresses || [],
+        addresses: finalAddresses,
         birthDate: profileData.birthDate,
         phoneNumber: profileData.phoneNumber || "",
         email: profileData.email || "",
-        latestOrders: profileData.latestOrders || [],
+        latestOrders: latestOrders,
         gender: profileData.gender,
         registerDate: profileData.registerDate,
         totalPurchasesAmount: profileData.totalPurchasesAmount || 0,
