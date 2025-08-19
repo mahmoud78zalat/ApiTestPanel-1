@@ -9,6 +9,7 @@ import type { CustomerProfile } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { exportToCSV, exportToTXT, downloadFile, parseFileContent } from "@/utils/export-utils";
 import type { ExportFormat } from "@/utils/export-utils";
+import { getShippingAddressFromOrders } from "@/utils/currency-utils";
 
 export const useProfileCollection = () => {
   const { toast } = useToast();

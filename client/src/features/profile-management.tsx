@@ -67,9 +67,17 @@ export function ProfileManagement({
     return acc;
   }, {} as Record<string, number>);
 
-  const totalPurchases = profiles.reduce((sum, profile) => 
-    sum + (profile.totalPurchasesAmount || 0), 0
-  );
+  // Calculate currency totals grouped by currency type
+  const currencyTotals = profiles.reduce((acc, profile) => {
+    const currency = getActualCurrency(profile.latestOrders || []);
+    const amount = profile.totalPurchasesAmount || 0;
+    acc[currency] = (acc[currency] || 0) + amount;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Check if we have multiple currencies
+  const currencyKeys = Object.keys(currencyTotals);
+  const hasMultipleCurrencies = currencyKeys.length > 1;
 
   if (totalProfiles === 0) {
     return (
@@ -167,9 +175,22 @@ export function ProfileManagement({
           <div className="flex items-center space-x-2 p-3 bg-purple-50 rounded-lg">
             <DollarSign className="w-5 h-5 text-purple-600" />
             <div>
-              <div className="text-lg font-semibold text-purple-900">
-                {formatCurrency(totalPurchases, 'AED ')}
-              </div>
+              {hasMultipleCurrencies ? (
+                <div className="text-sm font-semibold text-purple-900">
+                  {currencyKeys.map((currency, index) => (
+                    <div key={currency} className={index > 0 ? "mt-1" : ""}>
+                      {formatCurrency(currencyTotals[currency], currency)}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-lg font-semibold text-purple-900">
+                  {currencyKeys.length > 0 
+                    ? formatCurrency(currencyTotals[currencyKeys[0]], currencyKeys[0])
+                    : "No purchases"
+                  }
+                </div>
+              )}
               <div className="text-sm text-purple-700">Total Value</div>
             </div>
           </div>

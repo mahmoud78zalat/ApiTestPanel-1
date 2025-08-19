@@ -356,9 +356,7 @@ export default function ApiTesterRefactored() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           API Testing Panel
         </h1>
-        <p className="text-gray-600">
-          Professional API testing interface for Brands for Less endpoints
-        </p>
+
       </div>
 
       {/* Main API Request Form */}

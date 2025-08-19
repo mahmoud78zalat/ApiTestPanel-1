@@ -193,6 +193,7 @@ export const exportToCSV = (profiles: CustomerProfile[]): string => {
     for (const profile of sortedCompleteProfiles) {
       const currency = getActualCurrency(profile.latestOrders);
       const primaryAddress = profile.addresses?.[0];
+      const shippingAddressFallback = !primaryAddress ? getShippingAddressFromOrders(profile.latestOrders || []) : '';
       const incompleteReasons = getIncompleteReasons(profile);
       
       const row = [
