@@ -90,21 +90,30 @@ export const useApiRequest = () => {
       // If no customer address, try to extract shipping address from orders as fallback
       let finalAddresses = [...addresses];
       if (addresses.length === 0 && latestOrders.length > 0) {
-        const shippingAddressText = getShippingAddressFromOrders(latestOrders);
-        if (shippingAddressText) {
-          // Extract shipping details from orders
-          const firstOrderWithShipping = latestOrders.find((order: any) => 
-            order.enrichedData?.shippingAddress || order.shippingAddress
-          );
+        // Extract shipping details from orders
+        const firstOrderWithShipping = latestOrders.find((order: any) => 
+          order.enrichedData?.shippingAddress || order.shippingAddress
+        );
+        
+        if (firstOrderWithShipping) {
+          const shippingData = firstOrderWithShipping.enrichedData || firstOrderWithShipping;
           
-          if (firstOrderWithShipping) {
-            const shippingData = firstOrderWithShipping.enrichedData || firstOrderWithShipping;
-            finalAddresses.push({
-              address: shippingData.shippingAddress || shippingAddressText,
-              city: shippingData.shippingState || '',
-              country: shippingData.shippingCountry || 'Unknown',
-              type: 'shipping_fallback'
-            });
+          // Create a fallback address using shipping information from the latest order
+          const fallbackAddress = {
+            address: shippingData.shippingAddress || '',
+            city: shippingData.shippingState || shippingData.shippingArea || '',
+            country: shippingData.shippingCountry || 'United Arab Emirates',
+            type: 'shipping_fallback',
+            // Additional details from order data
+            fullAddress: `${shippingData.shippingAddress || ''}${shippingData.shippingState ? ', ' + shippingData.shippingState : ''}${shippingData.shippingCountry ? ', ' + shippingData.shippingCountry : ''}`.replace(/^, |, $/, ''),
+            postalCode: shippingData.shippingZip || '',
+            area: shippingData.shippingArea || '',
+            countryCode: shippingData.shippingCountryCode || shippingData.shippingCountryCode2 || 'AE'
+          };
+          
+          // Only add if we have meaningful address data
+          if (fallbackAddress.address && fallbackAddress.address.trim() !== '') {
+            finalAddresses.push(fallbackAddress);
           }
         }
       }

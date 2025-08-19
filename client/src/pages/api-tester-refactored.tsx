@@ -384,6 +384,7 @@ export default function ApiTesterRefactored() {
         bulkMode={bulkMode}
         bulkInput={bulkInput}
         isLoading={isLoading || isProfileLoading}
+        isProcessing={isProcessing}
         onUrlChange={setUrl}
         onMethodChange={setMethod}
         onTokenChange={setToken}

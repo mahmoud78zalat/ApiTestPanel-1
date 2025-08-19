@@ -38,6 +38,8 @@ interface ApiRequestFormProps {
   bulkInput: string;
   /** Loading state */
   isLoading?: boolean;
+  /** Bulk processing state */
+  isProcessing?: boolean;
   
   /** Event handlers */
   onUrlChange: (url: string) => void;
@@ -62,6 +64,7 @@ export function ApiRequestForm({
   bulkMode,
   bulkInput,
   isLoading = false,
+  isProcessing = false,
   onUrlChange,
   onMethodChange,
   onTokenChange,
@@ -278,10 +281,10 @@ export function ApiRequestForm({
         <div className="flex space-x-2 pt-4">
           <Button 
             onClick={onSubmit} 
-            disabled={!isLoading && (!url && !currentEndpoint) || (!bulkMode && isLoading)}
+            disabled={!bulkMode && !isProcessing && (!url && !currentEndpoint) || (!bulkMode && isLoading)}
             className="flex-1"
           >
-            {bulkMode && isLoading ? (
+            {bulkMode && isProcessing ? (
               <>
                 <Square className="w-4 h-4 mr-2" />
                 Stop Processing

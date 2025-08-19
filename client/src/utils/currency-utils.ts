@@ -116,12 +116,27 @@ export const normalizeCountryName = (country: string): string => {
 export const getShippingAddressFromOrders = (orders: any[]): string => {
   if (!orders?.length) return '';
   
-  // Look for shipping address in latest orders
+  // Look for shipping address in latest orders, checking enriched data first
   for (const order of orders.slice(0, 3)) { // Check first 3 orders
-    if (order?.shippingAddress) {
+    // Check enriched data first (priority 1)
+    if (order?.enrichedData?.shippingAddress) {
+      let address = order.enrichedData.shippingAddress;
+      if (order.enrichedData.shippingState) {
+        address += `, ${order.enrichedData.shippingState}`;
+      }
+      if (order.enrichedData.shippingCountry) {
+        address += `, ${order.enrichedData.shippingCountry}`;
+      }
+      return address;
+    }
+    // Fallback to direct order properties (priority 2)
+    else if (order?.shippingAddress) {
       let address = order.shippingAddress;
       if (order?.shippingState) {
         address += `, ${order.shippingState}`;
+      }
+      if (order?.shippingCountry) {
+        address += `, ${order.shippingCountry}`;
       }
       return address;
     }
